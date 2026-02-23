@@ -59,8 +59,8 @@
         },
         "shai-vscode.useWSL": {
           "type": "boolean",
-          "default": false,
-          "description": "Run Shai command in WSL bash environment (Windows only). Automatically translates Windows paths to WSL paths (e.g., C:\\Users\\lepe to /mnt/c/Users/lepe)"
+          "default": null,
+          "description": "Run Shai command in WSL bash environment. When null (default), automatically uses WSL on Windows and native shell on other platforms. Set to true/false to override."
         }
       }
     }

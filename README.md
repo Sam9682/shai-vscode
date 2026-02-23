@@ -35,6 +35,11 @@ Open VS Code Settings (Ctrl+,) and search for "Shai VS Code":
   - Default: `shai`
   - Examples: `/usr/local/bin/shai`, `python /path/to/shai.py`, `./shai`
 
+- **shai-vscode.useWSL**: Run Shai command in WSL bash environment
+  - Default: `null` (auto-detect: uses WSL on Windows, native shell on Linux/Mac)
+  - Set to `true` to force WSL usage
+  - Set to `false` to force native shell usage
+
 ## Usage
 
 1. Click the Shai icon in the Activity Bar (left sidebar)
@@ -68,14 +73,27 @@ npm run watch
 npx vsce package
 ```
 
+## Windows Support
+
+The extension automatically detects Windows and runs Shai commands through WSL bash, since Shai AI is only available for Linux/Mac. Windows paths are automatically converted to WSL format (e.g., `C:\Users\user` becomes `/mnt/c/Users/user`).
+
+**Prerequisites for Windows:**
+- WSL (Windows Subsystem for Linux) installed
+- Shai AI installed in your WSL environment
+
 ## Troubleshooting
 
-**Error: Command not found**
+**Error: Command not found (Windows)**
+- Ensure WSL is installed and working: `wsl --version`
+- Install Shai AI in your WSL environment, not Windows
+- Test Shai in WSL: `wsl bash -c "shai hello"`
+
+**Error: Command not found (Linux/Mac)**
 - Ensure Shai AI is installed and in your PATH
 - Configure the full path in settings: `shai-vscode.shaiCommand`
 
 **No output from commands**
-- Check that your Shai command is working in terminal
+- Check that your Shai command is working in terminal (or WSL on Windows)
 - Verify workspace folder permissions
 
 ## Repository

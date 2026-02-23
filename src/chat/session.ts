@@ -42,7 +42,8 @@ export class ChatSession {
         return new Promise((resolve) => {
             const config = vscode.workspace.getConfiguration('shai-vscode');
             const shaiCommand = config.get<string>('shaiCommand') || 'shai';
-            const useWSL = config.get<boolean>('useWSL') || false;
+            const useWSLConfig = config.get<boolean | null>('useWSL');
+            const useWSL = useWSLConfig !== null ? useWSLConfig : os.platform() === 'win32';
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
             
             let command: string;
