@@ -4,6 +4,8 @@ import { ChatController } from '../chat/controller';
 export class ChatViewProvider implements vscode.WebviewViewProvider {
     private view?: vscode.WebviewView;
     private currentTabId = 'default';
+    private tabIdMap = new Map<vscode.WebviewView, string>();
+    private isInitialized = false;
 
     constructor(
         private readonly extensionUri: vscode.Uri,
@@ -13,6 +15,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     resolveWebviewView(webviewView: vscode.WebviewView) {
         this.view = webviewView;
         
+        // Track which webview corresponds to which tab ID
+        this.tabIdMap.set(webviewView, this.currentTabId);
+        
         webviewView.webview.options = {
             enableScripts: true,
             localResourceRoots: [this.extensionUri]
@@ -20,15 +25,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.html = this.getHtmlContent(webviewView.webview);
         
+        // Handle when the webview becomes visible again
+        webviewView.onDidChangeVisibility(() => {
+            if (webviewView.visible && !this.isInitialized) {
+                this.initializeChat();
+            }
+        });
+        
         // Send existing chat history to the webview when it's ready
-        const session = this.chatController.getSession(this.currentTabId);
-        const messages = session.getMessages();
-        if (messages.length > 0) {
-            this.view?.webview.postMessage({
-                type: 'initChat',
-                messages: messages
-            });
-        }
+        this.initializeChat();
         
         webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
@@ -42,6 +47,25 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
+    private initializeChat() {
+        if (!this.view) return;
+        
+        // Get the correct tab ID for this webview
+        const tabId = this.tabIdMap.get(this.view) || this.currentTabId;
+        
+        // Send existing chat history to the webview when it's ready
+        const session = this.chatController.getSession(tabId);
+        const messages = session.getMessages();
+        if (messages.length > 0) {
+            this.view?.webview.postMessage({
+                type: 'initChat',
+                messages: messages
+            });
+        }
+        
+        this.isInitialized = true;
+    }
+
     private async handleChatPrompt(message: string) {
         if (!this.view) return;
 
@@ -50,9 +74,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             message: { type: 'user', message }
         });
 
-        const session = this.chatController.getSession(this.currentTabId);
+        // Show loading indicator immediately
+        this.view.webview.postMessage({
+            type: 'showLoading'
+        });
+
+        // Get the correct tab ID for this webview
+        const tabId = this.tabIdMap.get(this.view) || this.currentTabId;
+        const session = this.chatController.getSession(tabId);
         const response = await session.sendMessage(message);
 
+        // Hide loading indicator and show response
+        this.view.webview.postMessage({
+            type: 'hideLoading'
+        });
+        
         this.view.webview.postMessage({
             type: 'chatMessage',
             message: { type: 'assistant', message: response.message }
@@ -60,7 +96,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private handleClear() {
-        const session = this.chatController.getSession(this.currentTabId);
+        if (!this.view) return;
+        
+        // Get the correct tab ID for this webview
+        const tabId = this.tabIdMap.get(this.view) || this.currentTabId;
+        const session = this.chatController.getSession(tabId);
         session.clear();
         this.view?.webview.postMessage({ type: 'clearChat' });
     }
@@ -217,6 +257,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 data.messages.forEach(msg => {
                     addMessage(msg.type, msg.message);
                 });
+            } else if (data.type === 'showLoading') {
+                addLoadingIndicator();
+            } else if (data.type === 'hideLoading') {
+                removeLoadingIndicator();
             }
         });
     </script>
