@@ -96,6 +96,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             background: var(--vscode-editor-inactiveSelectionBackground);
             border-left: 3px solid var(--vscode-textLink-foreground);
         }
+        .loading { 
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--vscode-textLink-foreground);
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
         .input-container { 
             display: flex; 
             gap: 5px; 
@@ -143,9 +159,26 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             messages.scrollTop = messages.scrollHeight;
         }
         
+        function addLoadingIndicator() {
+            const div = document.createElement('div');
+            div.className = 'message assistant loading';
+            div.id = 'loading-indicator';
+            div.innerHTML = '<div class="spinner"></div> Shai is thinking...';
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+        
+        function removeLoadingIndicator() {
+            const loadingElement = document.getElementById('loading-indicator');
+            if (loadingElement) {
+                loadingElement.remove();
+            }
+        }
+        
         function sendMessage() {
             const msg = input.value.trim();
             if (msg) {
+                addLoadingIndicator();
                 vscode.postMessage({ type: 'chat-prompt', message: msg });
                 input.value = '';
             }
@@ -160,8 +193,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         window.addEventListener('message', event => {
             const data = event.data;
             if (data.type === 'chatMessage') {
+                removeLoadingIndicator();
                 addMessage(data.message.type, data.message.message);
             } else if (data.type === 'clearChat') {
+                removeLoadingIndicator();
                 messages.innerHTML = '';
             }
         });

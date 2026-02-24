@@ -71,10 +71,11 @@ export class ChatSession {
             let stdout = '';
             let stderr = '';
             
+            // Increased timeout from 30 seconds to 5 minutes (300 seconds)
             const timeout = setTimeout(() => {
                 child.kill();
-                resolve('Command timed out after 30 seconds');
-            }, 30000);
+                resolve('Command timed out after 5 minutes');
+            }, 300000);
             
             child.stdout.on('data', (data) => { stdout += data.toString(); });
             child.stderr.on('data', (data) => { stderr += data.toString(); });
