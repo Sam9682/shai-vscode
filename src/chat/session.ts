@@ -15,7 +15,10 @@ export class ChatSession {
     constructor(
         public readonly tabId: string,
         private context: vscode.ExtensionContext
-    ) {}
+    ) {
+        // Load saved history when session is created
+        this.loadHistory();
+    }
 
     async sendMessage(message: string): Promise<ChatMessage> {
         const userMsg: ChatMessage = {
@@ -34,6 +37,9 @@ export class ChatSession {
             timestamp: Date.now()
         };
         this.messages.push(assistantMsg);
+        
+        // Save history after each message
+        this.saveHistory();
         
         return assistantMsg;
     }
@@ -99,6 +105,7 @@ export class ChatSession {
 
     clear() {
         this.messages = [];
+        this.saveHistory();
     }
 
     private windowsToWSLPath(windowsPath: string): string {
@@ -118,7 +125,19 @@ export class ChatSession {
         return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     }
 
+    private saveHistory() {
+        // Save to global state
+        this.context.globalState.update(`shai-chat-history-${this.tabId}`, this.messages);
+    }
+
+    private loadHistory() {
+        // Load from global state
+        const savedMessages = this.context.globalState.get<ChatMessage[]>(`shai-chat-history-${this.tabId}`, []);
+        this.messages = savedMessages;
+    }
+
     dispose() {
+        this.saveHistory();
         this.messages = [];
     }
 }

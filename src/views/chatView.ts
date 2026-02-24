@@ -20,6 +20,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.html = this.getHtmlContent(webviewView.webview);
         
+        // Send existing chat history to the webview when it's ready
+        const session = this.chatController.getSession(this.currentTabId);
+        const messages = session.getMessages();
+        if (messages.length > 0) {
+            this.view?.webview.postMessage({
+                type: 'initChat',
+                messages: messages
+            });
+        }
+        
         webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
                 case 'chat-prompt':
@@ -100,6 +110,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             display: flex;
             align-items: center;
             gap: 10px;
+            padding: 10px;
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border-radius: 4px;
+            margin: 5px 0;
         }
         .spinner {
             width: 20px;
@@ -198,6 +212,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             } else if (data.type === 'clearChat') {
                 removeLoadingIndicator();
                 messages.innerHTML = '';
+            } else if (data.type === 'initChat') {
+                // Initialize chat with existing messages
+                data.messages.forEach(msg => {
+                    addMessage(msg.type, msg.message);
+                });
             }
         });
     </script>
