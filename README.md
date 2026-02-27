@@ -88,9 +88,10 @@ The extension automatically detects Windows and runs Shai commands through WSL b
 - Install Shai AI in your WSL environment, not Windows
 - Test Shai in WSL: `wsl bash -c "shai hello"`
 
-**Error: Command not found (Linux/Mac)**
+**Error: Command not found (Linux/macOS)**
 - Ensure Shai AI is installed and in your PATH
 - Configure the full path in settings: `shai-vscode.shaiCommand`
+- On macOS, if using Homebrew, Shai should be installed in `/usr/local/bin` or `/opt/homebrew/bin`
 
 **No output from commands**
 - Check that your Shai command is working in terminal (or WSL on Windows)

@@ -49,14 +49,27 @@ export class ChatSession {
             const config = vscode.workspace.getConfiguration('shai-vscode');
             const shaiCommand = config.get<string>('shaiCommand') || 'shai';
             const useWSLConfig = config.get<boolean | null>('useWSL');
-            const useWSL = useWSLConfig !== null ? useWSLConfig : os.platform() === 'win32';
+            const platform = os.platform();
+            const useWSL = useWSLConfig !== null ? useWSLConfig : platform === 'win32';
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
             
             let command: string;
             let args: string[];
             let cwd: string;
+            let env: NodeJS.ProcessEnv;
             
-            if (useWSL && os.platform() === 'win32') {
+            // On macOS, we need to ensure proper PATH for finding shai command
+            if (platform === 'darwin') {
+                // Create a more complete environment with standard PATH locations
+                env = { 
+                    ...process.env,
+                    PATH: process.env.PATH + ':/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin'
+                };
+            } else {
+                env = { ...process.env };
+            }
+            
+            if (useWSL && platform === 'win32') {
                 cwd = this.windowsToWSLPath(workspaceFolder);
                 command = 'wsl';
                 args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} "${message.replace(/"/g, '\\"')}"`];
@@ -69,7 +82,7 @@ export class ChatSession {
             const child = spawn(command, args, { 
                 cwd: useWSL ? undefined : cwd,
                 shell: !useWSL,
-                env: { ...process.env },
+                env: env,
                 stdio: ['pipe', 'pipe', 'pipe']
             });
             child.stdin.end();
