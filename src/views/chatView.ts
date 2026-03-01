@@ -185,6 +185,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             color: var(--vscode-input-foreground);
             border: 1px solid var(--vscode-input-border);
             border-radius: 2px;
+            resize: none;
+            overflow: hidden;
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+            line-height: 1.4;
+            min-height: 30px;
+            max-height: 200px;
+            box-sizing: border-box;
         }
         button { 
             padding: 8px 15px;
@@ -203,7 +211,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     <div id="chat-container">
         <div id="messages"></div>
         <div class="input-container">
-            <input type="text" id="input" placeholder="Ask Shai AI...">
+            <textarea id="input" placeholder="Ask Shai AI..." style="height: 30px;"></textarea>
             <button id="send">Send</button>
             <button id="clear">Clear</button>
         </div>
@@ -212,6 +220,35 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const vscode = acquireVsCodeApi();
         const messages = document.getElementById('messages');
         const input = document.getElementById('input');
+        
+        // Auto-resize textarea function
+        function autoResize() {
+            this.style.height = 'auto';
+            // Set height to scrollHeight to allow vertical growth
+            const newHeight = Math.min(this.scrollHeight, 200);
+            this.style.height = newHeight + 'px';
+            
+            // Ensure we don't go below minimum height
+            if (this.scrollHeight < 30) {
+                this.style.height = '30px';
+            }
+        }
+        
+        // Set up auto-resize for textarea
+        input.addEventListener('input', autoResize);
+        input.addEventListener('paste', function() {
+            setTimeout(autoResize.bind(this), 0);
+        });
+        
+        // Also trigger resize on focus to handle initial state
+        input.addEventListener('focus', autoResize);
+        
+        // Handle window resize to maintain proper sizing
+        window.addEventListener('resize', function() {
+            if (document.activeElement === input) {
+                autoResize.call(input);
+            }
+        });
         
         function addMessage(type, text) {
             const div = document.createElement('div');
@@ -250,7 +287,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         document.getElementById('clear').onclick = () => {
             vscode.postMessage({ type: 'clear' });
         };
-        input.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                if (e.shiftKey) {
+                    // Allow Shift+Enter for new line
+                    return true;
+                } else {
+                    // Prevent default and send message
+                    e.preventDefault();
+                    sendMessage();
+                    return false;
+                }
+            }
+        };
         
         window.addEventListener('message', event => {
             const data = event.data;
