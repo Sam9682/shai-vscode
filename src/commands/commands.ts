@@ -14,6 +14,10 @@ export function registerCommands(
             const session = chatController.getSession('default');
             session.clear();
             vscode.window.showInformationMessage('Chat cleared');
+        }),
+        
+        vscode.commands.registerCommand('shai-vscode.showReadme', () => {
+            vscode.commands.executeCommand('shai-readme-view.focus');
         })
     );
 }

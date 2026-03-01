@@ -1,0 +1,94 @@
+{
+  "name": "shai-vscode",
+  "displayName": "Shai VS Code",
+  "description": "Integrates Shai AI assistant directly into VS Code with shell command execution",
+  "version": "0.0.1",
+  "readme": "README.md",
+  "publisher": "shai-dev",
+  "icon": "shai_icon_vscode.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sam9682/shai-vscode.git"
+  },
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "shai-chat",
+          "title": "Shai Chat",
+          "icon": "shai_icon_vscode.png"
+        }
+      ]
+    },
+    "views": {
+      "shai-chat": [
+        {
+          "id": "shai-readme-view",
+          "name": "Setup Guide",
+          "type": "webview"
+        }
+        {
+          "id": "shai-chat-view",
+          "name": "Chat",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "shai-vscode.showReadme",
+        "title": "Shai: Show Setup Guide"
+      }
+      {
+        "command": "shai-vscode.openChat",
+        "title": "Shai: Open Chat"
+      },
+      {
+        "command": "shai-vscode.clearChat",
+        "title": "Shai: Clear Chat"
+      }
+    ],
+    "configuration": {
+      "title": "Shai VS Code",
+      "properties": {
+        "shai-vscode.shaiCommand": {
+          "type": "string",
+          "default": "shai",
+          "description": "Shell command to execute Shai AI (e.g., 'shai', '/path/to/shai', 'python shai.py')"
+        },
+        "shai-vscode.useWSL": {
+          "type": "boolean",
+          "default": null,
+          "description": "Run Shai command in WSL bash environment. When null (default), automatically uses WSL on Windows and native shell on other platforms. Set to true/false to override."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.74.0",
+    "@vscode/vsce": "^2.15.0",
+    "cheerio": "^1.0.0-rc.10",
+    "typescript": "^5.0.0",
+    "vscode-uri": "^3.1.0"
+  },
+  "overrides": {
+    "glob": "^10.0.0",
+    "inflight": "npm:@isaacs/inflight@^1.0.6"
+  }
+}

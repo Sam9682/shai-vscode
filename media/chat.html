@@ -25,27 +25,40 @@
             display: flex;
             gap: 10px;
             margin-bottom: 10px;
+            align-items: flex-end; /* Align items to bottom */
         }
         #input { 
             flex-grow: 1; 
             padding: 5px; 
             resize: vertical; /* Allow vertical resizing only */
             min-height: 50px;
+            box-sizing: border-box; /* Include padding in height calculation */
+            height: 30px; /* Fixed height for initial state */
         }
         #send { 
             padding: 5px 10px; 
             white-space: nowrap;
+            min-width: 60px;
+            height: 30px;
+            flex-shrink: 0; /* Prevent shrinking */
+            flex-grow: 0; /* Prevent growing */
         }
         #clear { 
             padding: 5px 10px; 
             white-space: nowrap;
+            min-width: 60px;
+            height: 30px;
+            flex-shrink: 0; /* Prevent shrinking */
+            flex-grow: 0; /* Prevent growing */
         }
     </style>
 </head>
 <body>
     <div id="messages"></div>
     <div id="input-container">
-        <textarea id="input" placeholder="Type your message..."></textarea>
+        <div style="flex-grow: 1; display: flex; flex-direction: column;">
+            <textarea id="input" placeholder="Type your message..."></textarea>
+        </div>
         <button id="send">Send</button>
         <button id="clear">Clear</button>
     </div>
@@ -60,7 +73,7 @@
         // Auto-resize textarea based on content
         input.addEventListener('input', function() {
             this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
+            this.style.height = Math.min(this.scrollHeight, 200) + 'px'; // Limit max height
         });
         
         send.addEventListener('click', () => {

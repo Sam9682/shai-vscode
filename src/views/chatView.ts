@@ -5,6 +5,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private view?: vscode.WebviewView;
     private currentTabId = 'default';
     private tabIdMap = new Map<vscode.WebviewView, string>();
+    private streamingSession?: any; // To track the streaming session for progress updates
 
     constructor(
         private readonly extensionUri: vscode.Uri,
@@ -88,18 +89,63 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         // Get the correct tab ID for this webview
         const tabId = this.tabIdMap.get(this.view) || this.currentTabId;
-        const session = this.chatController.getSession(tabId);
-        const response = await session.sendMessage(message);
+        const streamingSession = this.chatController.getStreamingSession(tabId);
+        const response = await streamingSession.executeCommandWithStreaming(message, (progress) => {
+            // Handle progress updates from streaming session
+            this.handleStreamingProgress(progress);
+        });
 
-        // Hide loading indicator and show response
+        // Hide loading indicator and show final response
         this.view.webview.postMessage({
             type: 'hideLoading'
         });
         
         this.view.webview.postMessage({
             type: 'chatMessage',
-            message: { type: 'assistant', message: response.message }
+            message: { type: 'assistant', message: response }
         });
+    }
+
+    private handleStreamingProgress(progress: any) {
+        if (!this.view || !this.view.webview) return;
+        
+        // Handle different types of progress events
+        if (progress.type === 'progress') {
+            // Show different messages based on stage
+            if (progress.stage === 'analyzing') {
+                this.view.webview.postMessage({
+                    type: 'updateThinkingStage',
+                    stage: 'analyzing',
+                    message: 'Analyzing your request...'
+                });
+            } else if (progress.stage === 'processing') {
+                this.view.webview.postMessage({
+                    type: 'updateThinkingStage',
+                    stage: 'processing', 
+                    message: 'Processing your request...'
+                });
+            } else if (progress.stage === 'error') {
+                this.view.webview.postMessage({
+                    type: 'updateThinkingStage',
+                    stage: 'error',
+                    message: 'Error occurred during processing...'
+                });
+            }
+        } else if (progress.type === 'complete') {
+            // Final completion - hide any thinking indicators and show full response
+            this.view.webview.postMessage({
+                type: 'updateThinkingStage',
+                stage: 'completed',
+                message: progress.data
+            });
+        } else if (progress.type === 'error') {
+            // Error handling
+            this.view.webview.postMessage({
+                type: 'updateThinkingStage',
+                stage: 'error',
+                message: progress.data
+            });
+        }
     }
 
     private handleClear() {
@@ -154,7 +200,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             background: var(--vscode-editor-inactiveSelectionBackground);
             border-left: 3px solid var(--vscode-textLink-foreground);
         }
-        .loading { 
+        .thinking { 
             display: flex;
             align-items: center;
             gap: 10px;
@@ -162,6 +208,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             background: var(--vscode-editor-inactiveSelectionBackground);
             border-radius: 4px;
             margin: 5px 0;
+        }
+        .thinking-stage {
+            font-weight: bold;
+            color: var(--vscode-textLink-foreground);
         }
         .spinner {
             width: 20px;
@@ -258,26 +308,40 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             messages.scrollTop = messages.scrollHeight;
         }
         
-        function addLoadingIndicator() {
+        function addThinkingIndicator(stage, message) {
             const div = document.createElement('div');
-            div.className = 'message assistant loading';
-            div.id = 'loading-indicator';
-            div.innerHTML = '<div class="spinner"></div> Shai is thinking...';
+            div.className = 'message assistant thinking';
+            div.id = 'thinking-indicator-' + stage;
+            div.innerHTML = '<div class="spinner"></div> <span class="thinking-stage">' + stage.charAt(0).toUpperCase() + stage.slice(1) + '</span>: ' + message;
             messages.appendChild(div);
             messages.scrollTop = messages.scrollHeight;
         }
         
-        function removeLoadingIndicator() {
-            const loadingElement = document.getElementById('loading-indicator');
-            if (loadingElement) {
-                loadingElement.remove();
+        function updateThinkingIndicator(stage, message) {
+            const existingIndicator = document.getElementById('thinking-indicator-' + stage);
+            if (existingIndicator) {
+                // Update existing indicator
+                const messageSpan = existingIndicator.querySelector('.thinking-stage').nextSibling;
+                if (messageSpan) {
+                    messageSpan.textContent = message;
+                }
+            } else {
+                // Add new indicator if needed
+                addThinkingIndicator(stage, message);
+            }
+        }
+        
+        function removeThinkingIndicator(stage) {
+            const indicator = document.getElementById('thinking-indicator-' + stage);
+            if (indicator) {
+                indicator.remove();
             }
         }
         
         function sendMessage() {
             const msg = input.value.trim();
             if (msg) {
-                addLoadingIndicator();
+                addThinkingIndicator('analyzing', 'Analyzing your request...');
                 vscode.postMessage({ type: 'chat-prompt', message: msg });
                 input.value = '';
             }
@@ -304,20 +368,37 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         window.addEventListener('message', event => {
             const data = event.data;
             if (data.type === 'chatMessage') {
-                removeLoadingIndicator();
+                // Remove any thinking indicators when we get a final message
+                removeThinkingIndicator('analyzing');
+                removeThinkingIndicator('processing'); 
+                removeThinkingIndicator('error');
                 addMessage(data.message.type, data.message.message);
             } else if (data.type === 'clearChat') {
-                removeLoadingIndicator();
+                // Clear all thinking indicators when clearing chat
+                removeThinkingIndicator('analyzing');
+                removeThinkingIndicator('processing'); 
+                removeThinkingIndicator('error');
                 messages.innerHTML = '';
             } else if (data.type === 'initChat') {
                 // Initialize chat with existing messages
                 data.messages.forEach(msg => {
                     addMessage(msg.type, msg.message);
                 });
-            } else if (data.type === 'showLoading') {
-                addLoadingIndicator();
-            } else if (data.type === 'hideLoading') {
-                removeLoadingIndicator();
+            } else if (data.type === 'updateThinkingStage') {
+                // Update thinking stage with new information
+                if (data.stage === 'analyzing') {
+                    updateThinkingIndicator('analyzing', data.message);
+                } else if (data.stage === 'processing') {
+                    updateThinkingIndicator('processing', data.message);
+                } else if (data.stage === 'error') {
+                    updateThinkingIndicator('error', data.message);
+                } else if (data.stage === 'completed') {
+                    // When completed, remove all thinking indicators and show final result
+                    removeThinkingIndicator('analyzing');
+                    removeThinkingIndicator('processing'); 
+                    removeThinkingIndicator('error');
+                    addMessage('assistant', data.message);
+                }
             }
         });
     </script>

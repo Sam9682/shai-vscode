@@ -33,6 +33,11 @@
     "views": {
       "shai-chat": [
         {
+          "id": "shai-readme-view",
+          "name": "Setup Guide",
+          "type": "webview"
+        },
+        {
           "id": "shai-chat-view",
           "name": "Chat",
           "type": "webview"
@@ -40,6 +45,10 @@
       ]
     },
     "commands": [
+      {
+        "command": "shai-vscode.showReadme",
+        "title": "Shai: Show Setup Guide"
+      },
       {
         "command": "shai-vscode.openChat",
         "title": "Shai: Open Chat"
