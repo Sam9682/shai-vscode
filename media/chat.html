@@ -5,29 +5,76 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shai Chat</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 10px; }
-        #messages { height: 300px; border: 1px solid #ccc; padding: 10px; overflow-y: auto; margin-bottom: 10px; }
-        #input { width: 80%; padding: 5px; }
-        #send { padding: 5px 10px; }
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 10px; 
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #messages { 
+            height: 300px; 
+            border: 1px solid #ccc; 
+            padding: 10px; 
+            overflow-y: auto; 
+            margin-bottom: 10px; 
+            flex-grow: 1;
+        }
+        #input-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        #input { 
+            flex-grow: 1; 
+            padding: 5px; 
+            resize: vertical; /* Allow vertical resizing only */
+            min-height: 50px;
+        }
+        #send { 
+            padding: 5px 10px; 
+            white-space: nowrap;
+        }
+        #clear { 
+            padding: 5px 10px; 
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
     <div id="messages"></div>
-    <textarea id="input" placeholder="Type your message..."></textarea>
-    <button id="send">Send</button>
+    <div id="input-container">
+        <textarea id="input" placeholder="Type your message..."></textarea>
+        <button id="send">Send</button>
+        <button id="clear">Clear</button>
+    </div>
     
     <script>
         const vscode = acquireVsCodeApi();
         const messages = document.getElementById('messages');
         const input = document.getElementById('input');
         const send = document.getElementById('send');
+        const clear = document.getElementById('clear');
+        
+        // Auto-resize textarea based on content
+        input.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
         
         send.addEventListener('click', () => {
             const text = input.value.trim();
             if (text) {
                 vscode.postMessage({ command: 'sendMessage', text });
                 input.value = '';
+                input.style.height = 'auto'; // Reset height after sending
             }
+        });
+        
+        clear.addEventListener('click', () => {
+            messages.innerHTML = '';
+            vscode.postMessage({ command: 'clearChat' });
         });
         
         window.addEventListener('message', event => {
