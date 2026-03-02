@@ -26,7 +26,7 @@
         {
           "id": "shai-chat",
           "title": "Shai Chat",
-          "icon": "shai_icon_vscode.png"
+          "icon": "shai_icon_32.png"
         }
       ]
     },
@@ -70,6 +70,17 @@
           "type": "boolean",
           "default": null,
           "description": "Run Shai command in WSL bash environment. When null (default), automatically uses WSL on Windows and native shell on other platforms. Set to true/false to override."
+        }
+        ,
+        "shai-vscode.useServer": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, start a long‑running `shai server` process and communicate over HTTP/SSE instead of spawning a new CLI for every query. Requires the server mode be supported by the shai command."
+        },
+        "shai-vscode.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000",
+          "description": "URL of the local Shai server used when `useServer` is enabled. The extension will POST messages to this address and listen for Server‑Sent Events."
         }
       }
     }

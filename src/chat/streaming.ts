@@ -12,6 +12,7 @@ export interface StreamingResponse {
 
 export class StreamingChatSession {
   private messages: any[] = [];
+  private static serverProcess: import('child_process').ChildProcess | null = null;
   
   constructor(
     public readonly tabId: string,
@@ -21,18 +22,21 @@ export class StreamingChatSession {
   }
 
   async executeCommandWithStreaming(message: string, onProgress: (progress: StreamingResponse) => void): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const config = vscode.workspace.getConfiguration('shai-vscode');
-      const shaiCommand = config.get<string>('shaiCommand') || 'shai';
-      const useWSLConfig = config.get<boolean | null>('useWSL');
-      const platform = os.platform();
-      const useWSL = useWSLConfig !== null ? useWSLConfig : platform === 'win32';
-      const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
-      
-      let command: string;
-      let args: string[];
-      let cwd: string;
-      let env: NodeJS.ProcessEnv;
+    const config = vscode.workspace.getConfiguration('shai-vscode');
+    const shaiCommand = config.get<string>('shaiCommand') || 'shai';
+    const useServer = config.get<boolean>('useServer') || false;
+    const serverUrl = config.get<string>('serverUrl') || 'http://127.0.0.1:8000';
+    const useWSLConfig = config.get<boolean | null>('useWSL');
+    const platform = os.platform();
+      const useWSL: boolean = useWSLConfig !== null && useWSLConfig !== undefined
+        ? useWSLConfig
+        : platform === 'win32';
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
+
+    let command: string;
+    let args: string[];
+    let cwd: string;
+    let env: NodeJS.ProcessEnv;
       
       // On macOS, we need to ensure proper PATH for finding shai command
       if (platform === 'darwin') {
@@ -54,82 +58,83 @@ export class StreamingChatSession {
         command = shaiCommand;
         args = [message];
       }
-      
+    // if the user has opted into server mode we bypass the shell call and
+    // instead talk to the HTTP/SSE endpoint.  this keeps a single process
+    // alive (``shai server``) rather than spawning two separate ones for the
+    // fake "analyzing"/"error" stages.
+    if (useServer) {
+      // spawn the server once and wait briefly for it to bind
+      await StreamingChatSession.ensureServerRunning(shaiCommand, useWSL, cwd, env);
+      // perform the POST and stream response events
+      return this.callServer(message, serverUrl, onProgress);
+    }
+
+    // --- original CLI path ------------------------------------------------
+    return new Promise((resolve, reject) => {
       const child = spawn(command, args, { 
         cwd: useWSL ? undefined : cwd,
         shell: !useWSL,
         env: env,
         stdio: ['pipe', 'pipe', 'pipe']
       });
-      
       child.stdin.end();
-      
+
       let stdout = '';
       let stderr = '';
-      
-      // Send progress updates for different stages of Shai's thinking process
-      onProgress({
-        id: this.generateId(),
-        type: 'progress',
-        data: 'Analyzing your request...',
-        timestamp: Date.now(),
-        stage: 'analyzing'
-      });
-      
-      // Increased timeout from 30 seconds to 5 minutes (300 seconds)
+
+
       const timeout = setTimeout(() => {
         child.kill();
         onProgress({
           id: this.generateId(),
           type: 'error',
           data: 'Command timed out after 5 minutes',
-          timestamp: Date.now(),
-          stage: 'error'
+          timestamp: Date.now()
         });
         reject(new Error('Command timed out after 5 minutes'));
       }, 300000);
-      
-      child.stdout.on('data', (data) => { 
-        stdout += data.toString();
-        // Send partial output as progress with stage information
+
+      child.stdout.on('data', (data) => {
+        // strip any ANSI escapes from the chunk before sending it along
+        const text = this.stripAnsi(data.toString());
+        stdout += text;
         onProgress({
           id: this.generateId(),
           type: 'progress',
-          data: data.toString(),
-          timestamp: Date.now(),
-          stage: 'processing'
+          data: text,
+          timestamp: Date.now()
         });
       });
-      
-      child.stderr.on('data', (data) => { 
-        stderr += data.toString();
-        // Send error output as progress with stage information
+
+      // treat stderr output as normal progress chunks rather than an "error"
+      // stage; showing an error indicator every time `shai` prints to stderr
+      // created a second thinking bubble and made it look like two processes
+      // were running.  forwarding it as a regular progress event keeps the
+      // UI in a single flow.
+      child.stderr.on('data', (data) => {
+        const text = this.stripAnsi(data.toString());
+        stderr += text;
         onProgress({
           id: this.generateId(),
           type: 'progress',
-          data: data.toString(),
-          timestamp: Date.now(),
-          stage: 'error'
+          data: text,
+          timestamp: Date.now()
         });
       });
-      
+
       child.on('close', () => {
         clearTimeout(timeout);
         const output = stderr || stdout || 'No output';
         const cleanOutput = this.stripAnsi(output);
-        
-        // Send final completion message with stage information
         onProgress({
           id: this.generateId(),
           type: 'complete',
           data: cleanOutput,
-          timestamp: Date.now(),
-          stage: 'completed'
+          timestamp: Date.now()
         });
-        
         resolve(cleanOutput);
       });
-      
+
       child.on('error', (error) => {
         clearTimeout(timeout);
         const errorMessage = `Error: ${error.message}`;
@@ -137,8 +142,7 @@ export class StreamingChatSession {
           id: this.generateId(),
           type: 'error',
           data: errorMessage,
-          timestamp: Date.now(),
-          stage: 'error'
+          timestamp: Date.now()
         });
         reject(new Error(errorMessage));
       });
@@ -160,6 +164,113 @@ export class StreamingChatSession {
 
   private generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * post the user message to the running server and stream back SSE events.
+   * resolves with the final accumulated response text.
+   */
+  private async callServer(
+    message: string,
+    serverUrl: string,
+    onProgress: (progress: StreamingResponse) => void
+  ): Promise<string> {
+    let stdout = '';
+    try {
+      const res = await fetch(`${serverUrl}/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: message
+      });
+      if (!res.ok || !res.body) {
+        throw new Error(`server returned ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+        for (const part of parts) {
+          const m = part.match(/^data:\s*(.*)$/m);
+            if (m) {
+                // strip ANSI escapes from server-sent chunks as well
+                const text = this.stripAnsi(m[1]);
+                stdout += text;
+                onProgress({
+                  id: this.generateId(),
+                  type: 'progress',
+                  data: text,
+                  timestamp: Date.now()
+                });
+              }
+        }
+      }
+      // we do not emit a final event here; the caller already accumulates
+      // the chunks and will be notified when the promise resolves.  emitting
+      // a `complete` event would cause the UI to duplicate the result.
+      return stdout;
+    } catch (err: any) {
+      const msg = err.message || String(err);
+      onProgress({
+        id: this.generateId(),
+        type: 'error',
+        data: msg,
+        timestamp: Date.now()
+      });
+      throw err;
+    }
+  }
+
+  /**
+   * spawn ``shai server`` once; this is a long‑lived child that speaks SSE.
+   */
+  private static ensureServerRunning(
+    shaiCommand: string,
+    useWSL: boolean,
+    cwd: string,
+    env: NodeJS.ProcessEnv
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (StreamingChatSession.serverProcess) {
+        return resolve();
+      }
+      let command = shaiCommand;
+      let args: string[] = ['server'];
+      if (useWSL && os.platform() === 'win32') {
+        command = 'wsl';
+        args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} server`];
+      }
+      const proc = spawn(command, args, {
+        cwd: useWSL ? undefined : cwd,
+        shell: !useWSL,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      StreamingChatSession.serverProcess = proc;
+      const cleanup = () => {
+        StreamingChatSession.serverProcess = null;
+      };
+      proc.on('exit', cleanup);
+      proc.on('error', (e) => {
+        cleanup();
+        reject(e);
+      });
+      proc.stdout?.on('data', (d) => {
+        const text = d.toString();
+        if (/listening|ready/i.test(text)) {
+          resolve();
+        }
+      });
+      proc.stderr?.on('data', (d) => {
+        console.error('[shai server]', d.toString());
+      });
+      // in case the server doesn't emit a message quickly, just resolve
+      setTimeout(() => resolve(), 5000);
+    });
   }
 
   private saveHistory() {

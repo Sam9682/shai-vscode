@@ -90,20 +90,48 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // Get the correct tab ID for this webview
         const tabId = this.tabIdMap.get(this.view) || this.currentTabId;
         const streamingSession = this.chatController.getStreamingSession(tabId);
+        let streamed = false;
         const response = await streamingSession.executeCommandWithStreaming(message, (progress) => {
-            // Handle progress updates from streaming session
-            this.handleStreamingProgress(progress);
+            // any progress chunks without a stage are treated as streaming data
+            if (progress.type === 'progress' && !progress.stage) {
+                streamed = true;
+                this.view?.webview.postMessage({
+                    type: 'streamChunk',
+                    chunk: progress.data
+                });
+            } else if (progress.type === 'complete' && streamed) {
+                // final completion when we already streamed; just clear the
+                // thinking indicator, don't append a second message.
+                this.view?.webview.postMessage({
+                    type: 'updateThinkingStage',
+                    stage: 'completed',
+                    message: ''
+                });
+            } else {
+                this.handleStreamingProgress(progress);
+            }
         });
 
-        // Hide loading indicator and show final response
+        // Hide loading indicator
         this.view.webview.postMessage({
             type: 'hideLoading'
         });
-        
-        this.view.webview.postMessage({
-            type: 'chatMessage',
-            message: { type: 'assistant', message: response }
-        });
+
+        // if we didn't stream any data, send the final message as before;
+        // otherwise the UI already built up the assistant response incrementally
+        if (!streamed) {
+            this.view.webview.postMessage({
+                type: 'chatMessage',
+                message: { type: 'assistant', message: response }
+            });
+        } else {
+            // the stream has completed; clear any remaining thinking indicators
+            this.view.webview.postMessage({
+                type: 'updateThinkingStage',
+                stage: 'completed',
+                message: ''
+            });
+        }
     }
 
     private handleStreamingProgress(progress: any) {
@@ -111,7 +139,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         
         // Handle different types of progress events
         if (progress.type === 'progress') {
-            // Show different messages based on stage
+            // Show different messages based on stage.  "error" is handled the
+            // same way as a progress-error message (see below) to avoid
+            // spawning a separate thinking bubble during normal execution.
             if (progress.stage === 'analyzing') {
                 this.view.webview.postMessage({
                     type: 'updateThinkingStage',
@@ -126,9 +156,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 });
             } else if (progress.stage === 'error') {
                 this.view.webview.postMessage({
-                    type: 'updateThinkingStage',
-                    stage: 'error',
-                    message: 'Error occurred during processing...'
+                    type: 'chatMessage',
+                    message: { type: 'assistant', message: progress.data }
                 });
             }
         } else if (progress.type === 'complete') {
@@ -139,11 +168,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 message: progress.data
             });
         } else if (progress.type === 'error') {
-            // Error handling
+            // Errors coming from the CLI/server are not a separate thinking
+            // stage; display them as a normal assistant message so the UI
+            // remains a single conversation thread rather than spawning a
+            // second "error" process bubble.
             this.view.webview.postMessage({
-                type: 'updateThinkingStage',
-                stage: 'error',
-                message: progress.data
+                type: 'chatMessage',
+                message: { type: 'assistant', message: progress.data }
             });
         }
     }
@@ -397,8 +428,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     removeThinkingIndicator('analyzing');
                     removeThinkingIndicator('processing'); 
                     removeThinkingIndicator('error');
-                    addMessage('assistant', data.message);
+                        addMessage('assistant', data.message);
                 }
+            } else if (data.type === 'streamChunk') {
+                // append text to the last assistant bubble (or create one if none)
+                let last = messages.querySelector('.message.assistant:last-child');
+                if (!last) {
+                    last = document.createElement('div');
+                    last.className = 'message assistant';
+                    messages.appendChild(last);
+                }
+                // remove the initial thinking spinner when the first chunk arrives
+                removeThinkingIndicator('analyzing');
+                last.textContent += data.chunk;
+                messages.scrollTop = messages.scrollHeight;
             }
         });
     </script>

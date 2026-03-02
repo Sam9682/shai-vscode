@@ -40,6 +40,16 @@ Open VS Code Settings (Ctrl+,) and search for "Shai VS Code":
   - Set to `true` to force WSL usage
   - Set to `false` to force native shell usage
 
+- **shai-vscode.useServer**: When enabled the extension starts a single
+  long‑running `shai server` process and communicates with it over HTTP
+  using Server‑Sent Events (SSE).  This eliminates the artificial
+  "Analyzing…"/"Error…" stages and allows the UI to render partial
+  responses as they arrive.  Requires that your `shai` executable support
+  a `server` subcommand (or equivalent) and that the URL below matches
+  where it listens.
+- **shai-vscode.serverUrl**: URL of the local Shai HTTP/SSE server (default
+  `http://127.0.0.1:8000`).  Only used when `useServer` is `true`.
+
 ## Usage
 
 1. Click the Shai icon in the Activity Bar (left sidebar)
