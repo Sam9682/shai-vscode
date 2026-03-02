@@ -5,15 +5,11 @@ A VS Code extension that integrates Shai AI assistant directly into your editor 
 ## Installation
 
 1. Install the extension from the `.vsix` file:
-   ```bash
-   code --install-extension shai-vscode-0.0.1.vsix
-   ```
+   ```bash code --install-extension shai-vscode-0.0.1.vsix```
 
 2. Or build from source:
-   ```bash
-   npm install
-   npm run compile
-   ```
+   ```bash npm install
+   npm run compile```
 
 ## Prerequisites
 

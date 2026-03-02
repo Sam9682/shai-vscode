@@ -230,7 +230,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
         .assistant { 
             background: var(--vscode-editor-inactiveSelectionBackground);
-            border-left: 3px solid var(--vscode-textLink-foreground);
+            border-left: 3px solid red; /* make assistant responses have red border */
         }
         .thinking { 
             display: flex;

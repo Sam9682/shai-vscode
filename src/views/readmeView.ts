@@ -44,8 +44,9 @@ export class ReadmeViewProvider implements vscode.WebviewViewProvider {
             padding: 20px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
             line-height: 1.6;
-            color: #333;
+            color: #000; /* black ink */
             background-color: #f8f9fa;
+            text-align: left;
         }
         .container {
             max-width: 800px;
@@ -98,14 +99,15 @@ export class ReadmeViewProvider implements vscode.WebviewViewProvider {
             height: 50px;
         }
         .loading {
-            text-align: center;
+            /* ensure even loading text is left-aligned; no centering anywhere */
+            text-align: left;
             padding: 20px;
             color: #666;
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container" style="text-align:left;">
         <div class="header">
             <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBmaWxsPSIjMzQ5OGRiIiBkPSJNMTEuNSAyLjVjLTIuNzYgMC01IDIuMjQtNSA1czIuMjQgNSA1IDUgNS0yLjI0IDUtNS0yLjI0LTUtNS01em0wIDguNWMtMS42NiAwLTMtMS4zNC0zLTMgMC0xLjY2IDEuMzQtMyAzLTMgMS42NiAwIDMgMS4zNCAzIDMgMCAxLjY2LTEuMzQgMy0zIDN6Ii8+PC9zdmc+" alt="Shai Logo" class="logo">
             <h1>Shai VS Code Setup Guide</h1>
@@ -205,7 +207,7 @@ export class ReadmeViewProvider implements vscode.WebviewViewProvider {
         panel.webview.onDidReceiveMessage(async (message) => {
             if (message.command === 'ready') {
                 try {
-                    const readmePath = vscode.Uri.joinPath(extensionUri, 'README.md');
+                    const readmePath = vscode.Uri.joinPath(extensionUri, 'SETUP_GUIDE.md');
                     const readmeContent = await vscode.workspace.fs.readFile(readmePath);
                     const content = Buffer.from(readmeContent).toString('utf-8');
                     const htmlContent = provider.convertMarkdownToHtml(content);
