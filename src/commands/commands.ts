@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { ChatController } from '../chat/controller';
+import { ChatViewProvider } from '../views/chatView';
+import { ReadmeViewProvider } from '../views/readmeView';
 
 export function registerCommands(
     context: vscode.ExtensionContext,
@@ -7,7 +9,8 @@ export function registerCommands(
 ): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('shai-vscode.openChat', () => {
-            vscode.commands.executeCommand('shai-chat-view.focus');
+            // open chat in standalone panel
+            ChatViewProvider.openPanel(context.extensionUri, chatController);
         }),
         
         vscode.commands.registerCommand('shai-vscode.clearChat', () => {
@@ -17,7 +20,7 @@ export function registerCommands(
         }),
         
         vscode.commands.registerCommand('shai-vscode.showReadme', () => {
-            vscode.commands.executeCommand('shai-readme-view.focus');
+            ReadmeViewProvider.openPanel(context.extensionUri);
         })
     );
 }

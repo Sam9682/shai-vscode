@@ -59,6 +59,7 @@ export class ReadmeViewProvider implements vscode.WebviewViewProvider {
             color: #2c3e50;
             border-bottom: 2px solid #3498db;
             padding-bottom: 10px;
+            text-align: left;
         }
         h2 {
             color: #34495e;
@@ -161,7 +162,7 @@ export class ReadmeViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private convertMarkdownToHtml(markdown: string): string {
+    public convertMarkdownToHtml(markdown: string): string {
         // Simple markdown to HTML converter
         let html = markdown
             .replace(/^# (.+)$/gm, '<h1>$1</h1>')
@@ -187,5 +188,33 @@ export class ReadmeViewProvider implements vscode.WebviewViewProvider {
         html = html.replace(/<p><\/p>/g, '');
         
         return html;
+    }
+
+    /**
+     * Open setup guide in a standalone webview panel (editor area).
+     */
+    public static openPanel(extensionUri: vscode.Uri) {
+        const panel = vscode.window.createWebviewPanel(
+            'shai-readme-panel',
+            'Shai Setup Guide',
+            vscode.ViewColumn.One,
+            { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')] }
+        );
+        const provider = new ReadmeViewProvider(extensionUri);
+        panel.webview.html = provider.getHtmlForWebview();
+        panel.webview.onDidReceiveMessage(async (message) => {
+            if (message.command === 'ready') {
+                try {
+                    const readmePath = vscode.Uri.joinPath(extensionUri, 'README.md');
+                    const readmeContent = await vscode.workspace.fs.readFile(readmePath);
+                    const content = Buffer.from(readmeContent).toString('utf-8');
+                    const htmlContent = provider.convertMarkdownToHtml(content);
+                    panel.webview.postMessage({ command: 'showReadme', content: htmlContent });
+                } catch (error) {
+                    panel.webview.postMessage({ command: 'showReadme', content: '<p>Error loading setup guide: ' + (error as Error).message + '</p>' });
+                }
+            }
+        });
+        return panel;
     }
 }

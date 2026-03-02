@@ -41,10 +41,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
                 case 'chat-prompt':
-                    await this.handleChatPrompt(data.message);
+                    await this.handleChatPrompt(data.message, webviewView.webview);
                     break;
                 case 'clear':
-                    this.handleClear();
+                    this.handleClear(webviewView.webview);
                     break;
             }
         });
@@ -53,8 +53,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private initializeChat() {
         if (!this.view || !this.view.webview) return;
         
-        // Get the correct tab ID for this webview
-        const tabId = this.tabIdMap.get(this.view) || this.currentTabId;
+        // Get the correct tab ID for this webview.  ``this.view`` may be
+        // undefined when called from a panel, so fall back to the default id
+        // in that case.
+        const tabId = (this.view ? this.tabIdMap.get(this.view) : undefined) || this.currentTabId;
         
         try {
             // Send existing chat history to the webview when it's ready
@@ -74,59 +76,58 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private async handleChatPrompt(message: string) {
-        if (!this.view) return;
-
-        this.view.webview.postMessage({
+    private async handleChatPrompt(message: string, webview: vscode.Webview) {
+        webview.postMessage({
             type: 'chatMessage',
             message: { type: 'user', message }
         });
 
         // Show loading indicator immediately
-        this.view.webview.postMessage({
+        webview.postMessage({
             type: 'showLoading'
         });
 
-        // Get the correct tab ID for this webview
-        const tabId = this.tabIdMap.get(this.view) || this.currentTabId;
+        // Get the correct tab ID for this webview; fall back to default if
+        // ``this.view`` is undefined (panels don't set it).
+        const tabId = (this.view ? this.tabIdMap.get(this.view) : undefined) || this.currentTabId;
         const streamingSession = this.chatController.getStreamingSession(tabId);
         let streamed = false;
         const response = await streamingSession.executeCommandWithStreaming(message, (progress) => {
             // any progress chunks without a stage are treated as streaming data
             if (progress.type === 'progress' && !progress.stage) {
                 streamed = true;
-                this.view?.webview.postMessage({
+                webview.postMessage({
                     type: 'streamChunk',
                     chunk: progress.data
                 });
             } else if (progress.type === 'complete' && streamed) {
                 // final completion when we already streamed; just clear the
                 // thinking indicator, don't append a second message.
-                this.view?.webview.postMessage({
+                webview.postMessage({
                     type: 'updateThinkingStage',
                     stage: 'completed',
                     message: ''
                 });
             } else {
-                this.handleStreamingProgress(progress);
+                this.handleStreamingProgress(progress, webview);
             }
         });
 
         // Hide loading indicator
-        this.view.webview.postMessage({
+        webview.postMessage({
             type: 'hideLoading'
         });
 
         // if we didn't stream any data, send the final message as before;
         // otherwise the UI already built up the assistant response incrementally
         if (!streamed) {
-            this.view.webview.postMessage({
+            webview.postMessage({
                 type: 'chatMessage',
                 message: { type: 'assistant', message: response }
             });
         } else {
             // the stream has completed; clear any remaining thinking indicators
-            this.view.webview.postMessage({
+            webview.postMessage({
                 type: 'updateThinkingStage',
                 stage: 'completed',
                 message: ''
@@ -134,8 +135,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private handleStreamingProgress(progress: any) {
-        if (!this.view || !this.view.webview) return;
+    private handleStreamingProgress(progress: any, webview: vscode.Webview) {
+        if (!webview) return;
         
         // Handle different types of progress events
         if (progress.type === 'progress') {
@@ -143,26 +144,26 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             // same way as a progress-error message (see below) to avoid
             // spawning a separate thinking bubble during normal execution.
             if (progress.stage === 'analyzing') {
-                this.view.webview.postMessage({
+                webview.postMessage({
                     type: 'updateThinkingStage',
                     stage: 'analyzing',
                     message: 'Analyzing your request...'
                 });
             } else if (progress.stage === 'processing') {
-                this.view.webview.postMessage({
+                webview.postMessage({
                     type: 'updateThinkingStage',
                     stage: 'processing', 
                     message: 'Processing your request...'
                 });
             } else if (progress.stage === 'error') {
-                this.view.webview.postMessage({
+                webview.postMessage({
                     type: 'chatMessage',
                     message: { type: 'assistant', message: progress.data }
                 });
             }
         } else if (progress.type === 'complete') {
             // Final completion - hide any thinking indicators and show full response
-            this.view.webview.postMessage({
+            webview.postMessage({
                 type: 'updateThinkingStage',
                 stage: 'completed',
                 message: progress.data
@@ -172,21 +173,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             // stage; display them as a normal assistant message so the UI
             // remains a single conversation thread rather than spawning a
             // second "error" process bubble.
-            this.view.webview.postMessage({
+            webview.postMessage({
                 type: 'chatMessage',
                 message: { type: 'assistant', message: progress.data }
             });
         }
     }
 
-    private handleClear() {
+    private handleClear(webview: vscode.Webview) {
         if (!this.view) return;
         
         // Get the correct tab ID for this webview
-        const tabId = this.tabIdMap.get(this.view) || this.currentTabId;
+        const tabId = (this.view ? this.tabIdMap.get(this.view) : undefined) || this.currentTabId;
         const session = this.chatController.getSession(tabId);
         session.clear();
-        this.view?.webview.postMessage({ type: 'clearChat' });
+        webview.postMessage({ type: 'clearChat' });
     }
 
     private getHtmlContent(webview: vscode.Webview): string {
@@ -447,5 +448,30 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     </script>
 </body>
 </html>`;
+    }
+
+    /**
+     * Create and show a standalone webview panel (in editor area) for chat.
+     */
+    public static openPanel(extensionUri: vscode.Uri, chatController: ChatController) {
+        const panel = vscode.window.createWebviewPanel(
+            'shai-chat-panel',
+            'Shai Chat',
+            vscode.ViewColumn.One,
+            { enableScripts: true, localResourceRoots: [extensionUri] }
+        );
+        const provider = new ChatViewProvider(extensionUri, chatController);
+        panel.webview.html = provider.getHtmlContent(panel.webview);
+        panel.webview.onDidReceiveMessage(async (data) => {
+            switch (data.type) {
+                case 'chat-prompt':
+                    await provider.handleChatPrompt(data.message, panel.webview);
+                    break;
+                case 'clear':
+                    provider.handleClear(panel.webview);
+                    break;
+            }
+        });
+        return panel;
     }
 }
