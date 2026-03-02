@@ -5,7 +5,7 @@
   "version": "0.0.1",
   "readme": "README.md",
   "publisher": "shai-dev",
-  "icon": "shai_icon_vscode.png",
+  "icon": "shai_icon_128.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/Sam9682/shai-vscode.git"
@@ -18,7 +18,12 @@
     "Chat",
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:shai-chat-view",
+    "onView:shai-readme-view",
+    "onCommand:shai-vscode.openChat",
+    "onCommand:shai-vscode.showReadme"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -26,7 +31,7 @@
         {
           "id": "shai-chat",
           "title": "Shai Chat",
-          "icon": "shai_icon_32.png"
+          "icon": "shai_icon_128.png"
         }
       ]
     },

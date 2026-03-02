@@ -112,6 +112,9 @@ export class ReadmeViewProvider implements vscode.WebviewViewProvider {
         <div id="readme-content" class="loading">Loading setup guide...</div>
     </div>
     <script>
+        // Acquire the VS Code API so we can communicate with the extension.
+        const vscode = acquireVsCodeApi();
+
         window.addEventListener('message', event => {
             const message = event.data;
             switch (message.command) {
@@ -120,9 +123,11 @@ export class ReadmeViewProvider implements vscode.WebviewViewProvider {
                     break;
             }
         });
-        
-        // Notify that we're ready to receive content
-        window.vscode.postMessage({command: 'ready'});
+
+        // Notify the extension that the webview is ready to receive the README.
+        // (Previously the code attempted to send on window.vscode, which was
+        // undefined inside the webview.)
+        vscode.postMessage({command: 'ready'});
     </script>
 </body>
 </html>`;
