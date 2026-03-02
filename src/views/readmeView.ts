@@ -140,8 +140,8 @@ export class ReadmeViewProvider implements vscode.WebviewViewProvider {
         if (!this._view) return;
 
         try {
-            // Get the path to the README file
-            const readmePath = vscode.Uri.joinPath(this._extensionUri, 'README.md');
+            // Get the path to the setup guide markdown file
+            const readmePath = vscode.Uri.joinPath(this._extensionUri, 'SETUP_GUIDE.md');
             
             // Read the README file content
             const readmeContent = await vscode.workspace.fs.readFile(readmePath);
@@ -156,7 +156,7 @@ export class ReadmeViewProvider implements vscode.WebviewViewProvider {
                 content: htmlContent
             });
         } catch (error) {
-            console.error('Failed to load README:', error);
+            console.error('Failed to load setup guide:', error);
             this._view.webview.postMessage({
                 command: 'showReadme',
                 content: '<p>Error loading setup guide: ' + (error as Error).message + '</p>'
