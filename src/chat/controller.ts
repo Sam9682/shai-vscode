@@ -27,6 +27,17 @@ export class ChatController {
         this.streamingSessions.delete(tabId);
     }
 
+    // interaction mode tracking - either 'none' or 'interactive'
+    private interactionModes = new Map<string, string>();
+
+    setInteractionMode(tabId: string, mode: string) {
+        this.interactionModes.set(tabId, mode);
+    }
+
+    getInteractionMode(tabId: string): string {
+        return this.interactionModes.get(tabId) || 'none';
+    }
+
     dispose() {
         this.sessions.forEach(session => session.dispose());
         this.streamingSessions.forEach(session => session.dispose());

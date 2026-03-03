@@ -21,7 +21,12 @@ export class StreamingChatSession {
     this.loadHistory();
   }
 
-  async executeCommandWithStreaming(message: string, onProgress: (progress: StreamingResponse) => void): Promise<string> {
+  async executeCommandWithStreaming(
+    message: string,
+    onProgress: (progress: StreamingResponse) => void,
+    interactionMode: string = 'none'
+  ): Promise<string> {
+    console.log('executeCommandWithStreaming called with message:', message, 'mode:', interactionMode);
     const config = vscode.workspace.getConfiguration('shai-vscode');
     const shaiCommand = config.get<string>('shaiCommand') || 'shai';
     const useServer = config.get<boolean>('useServer') || false;
@@ -66,11 +71,12 @@ export class StreamingChatSession {
       // spawn the server once and wait briefly for it to bind
       await StreamingChatSession.ensureServerRunning(shaiCommand, useWSL, cwd, env);
       // perform the POST and stream response events
-      return this.callServer(message, serverUrl, onProgress);
+      return this.callServer(message, serverUrl, onProgress, interactionMode);
     }
 
     // --- original CLI path ------------------------------------------------
     return new Promise((resolve, reject) => {
+      console.log('Spawning CLI child', command, args, 'cwd', cwd);
       const child = spawn(command, args, { 
         cwd: useWSL ? undefined : cwd,
         shell: !useWSL,
@@ -173,13 +179,17 @@ export class StreamingChatSession {
   private async callServer(
     message: string,
     serverUrl: string,
-    onProgress: (progress: StreamingResponse) => void
+    onProgress: (progress: StreamingResponse) => void,
+    interactionMode: string = 'none'
   ): Promise<string> {
     let stdout = '';
     try {
       const res = await fetch(`${serverUrl}/ask`, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
+        headers: { 
+            'Content-Type': 'text/plain',
+            'X-Shai-Interaction': interactionMode
+        },
         body: message
       });
       if (!res.ok || !res.body) {

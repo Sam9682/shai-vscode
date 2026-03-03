@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ChatController } from './chat/controller';
 import { ChatViewProvider } from './views/chatView';
-import { ReadmeViewProvider } from './views/readmeView';
+import { ReasoningViewProvider } from './views/reasoningView';
 import { registerCommands } from './commands/commands';
 
 let chatController: ChatController;
@@ -14,7 +14,7 @@ export function activate(context: vscode.ExtensionContext) {
         chatController
     );
     
-    const readmeViewProvider = new ReadmeViewProvider(context.extensionUri);
+    const reasoningViewProvider = new ReasoningViewProvider(context.extensionUri);
     
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
@@ -22,8 +22,8 @@ export function activate(context: vscode.ExtensionContext) {
             chatViewProvider
         ),
         vscode.window.registerWebviewViewProvider(
-            'shai-readme-view',
-            readmeViewProvider
+            'shai-reasoning-view',
+            reasoningViewProvider
         )
     );
     

@@ -1,458 +1,52 @@
 import * as vscode from 'vscode';
 import { ChatController } from '../chat/controller';
+import { ReasoningViewProvider } from './reasoningView';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
-    private view?: vscode.WebviewView;
-    private currentTabId = 'default';
-    private tabIdMap = new Map<vscode.WebviewView, string>();
-    private streamingSession?: any; // To track the streaming session for progress updates
+    public static readonly viewType = 'shai.chatView';
+    private _view?: vscode.WebviewView;
+    private controller: ChatController;
 
-    constructor(
-        private readonly extensionUri: vscode.Uri,
-        private readonly chatController: ChatController
-    ) {}
+    constructor(private readonly extensionUri: vscode.Uri, contextOrController: vscode.ExtensionContext | ChatController) {
+        if ((contextOrController as ChatController).getSession !== undefined) {
+            this.controller = contextOrController as ChatController;
+        } else {
+            this.controller = new ChatController(contextOrController as vscode.ExtensionContext);
+        }
+    }
 
     resolveWebviewView(webviewView: vscode.WebviewView) {
-        this.view = webviewView;
-        
-        // Track which webview corresponds to which tab ID
-        this.tabIdMap.set(webviewView, this.currentTabId);
-        
+        this._view = webviewView;
         webviewView.webview.options = {
             enableScripts: true,
-            localResourceRoots: [this.extensionUri]
+            localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')]
         };
 
         webviewView.webview.html = this.getHtmlContent(webviewView.webview);
-        
-        // Send existing chat history to the webview when it's ready
-        this.initializeChat();
-        
-        // Handle visibility changes to restore history when window is reopened
-        webviewView.onDidChangeVisibility(() => {
-            if (webviewView.visible) {
-                // Delay initialization slightly to ensure webview is fully ready
-                setTimeout(() => {
-                    this.initializeChat();
-                }, 100);
-            }
-        });
-        
-        webviewView.webview.onDidReceiveMessage(async (data) => {
-            switch (data.type) {
-                case 'chat-prompt':
-                    await this.handleChatPrompt(data.message, webviewView.webview);
-                    break;
-                case 'clear':
-                    this.handleClear(webviewView.webview);
-                    break;
-            }
-        });
-    }
 
-    private initializeChat() {
-        if (!this.view || !this.view.webview) return;
-        
-        // Get the correct tab ID for this webview.  ``this.view`` may be
-        // undefined when called from a panel, so fall back to the default id
-        // in that case.
-        const tabId = (this.view ? this.tabIdMap.get(this.view) : undefined) || this.currentTabId;
-        
-        try {
-            // Send existing chat history to the webview when it's ready
-            const session = this.chatController.getSession(tabId);
-            const messages = session.getMessages();
-            if (messages.length > 0) {
-                // Ensure the webview is ready before sending messages
-                if (this.view.webview) {
-                    this.view.webview.postMessage({
-                        type: 'initChat',
-                        messages: messages
-                    });
+        webviewView.webview.onDidReceiveMessage(async (message) => {
+            try {
+                if (!this._view) return;
+                const webview = this._view.webview;
+                switch (message.type) {
+                    case 'chat-prompt': {
+                        const text: string = message.message || '';
+                        if (!text.trim()) return;
+                        webview.postMessage({ type: 'clearStreaming' });
+                        this.handleChatPrompt(text, webview);
+                        break;
+                    }
+                    case 'clear': {
+                        webview.postMessage({ type: 'clear' });
+                        break;
+                    }
                 }
+            } catch (err) {
+                console.error('Error handling webview message', err);
             }
-        } catch (error) {
-            console.error('Error initializing chat:', error);
-        }
+        });
     }
 
-    private async handleChatPrompt(message: string, webview: vscode.Webview) {
-        webview.postMessage({
-            type: 'chatMessage',
-            message: { type: 'user', message }
-        });
-
-        // Show loading indicator immediately
-        webview.postMessage({
-            type: 'showLoading'
-        });
-
-        // Get the correct tab ID for this webview; fall back to default if
-        // ``this.view`` is undefined (panels don't set it).
-        const tabId = (this.view ? this.tabIdMap.get(this.view) : undefined) || this.currentTabId;
-        const streamingSession = this.chatController.getStreamingSession(tabId);
-        let streamed = false;
-        const response = await streamingSession.executeCommandWithStreaming(message, (progress) => {
-            // any progress chunks without a stage are treated as streaming data
-            if (progress.type === 'progress' && !progress.stage) {
-                streamed = true;
-                webview.postMessage({
-                    type: 'streamChunk',
-                    chunk: progress.data
-                });
-            } else if (progress.type === 'complete' && streamed) {
-                // final completion when we already streamed; just clear the
-                // thinking indicator, don't append a second message.
-                webview.postMessage({
-                    type: 'updateThinkingStage',
-                    stage: 'completed',
-                    message: ''
-                });
-            } else {
-                this.handleStreamingProgress(progress, webview);
-            }
-        });
-
-        // Hide loading indicator
-        webview.postMessage({
-            type: 'hideLoading'
-        });
-
-        // if we didn't stream any data, send the final message as before;
-        // otherwise the UI already built up the assistant response incrementally
-        if (!streamed) {
-            webview.postMessage({
-                type: 'chatMessage',
-                message: { type: 'assistant', message: response }
-            });
-        } else {
-            // the stream has completed; clear any remaining thinking indicators
-            webview.postMessage({
-                type: 'updateThinkingStage',
-                stage: 'completed',
-                message: ''
-            });
-        }
-    }
-
-    private handleStreamingProgress(progress: any, webview: vscode.Webview) {
-        if (!webview) return;
-        
-        // Handle different types of progress events
-        if (progress.type === 'progress') {
-            // Show different messages based on stage.  "error" is handled the
-            // same way as a progress-error message (see below) to avoid
-            // spawning a separate thinking bubble during normal execution.
-            if (progress.stage === 'analyzing') {
-                webview.postMessage({
-                    type: 'updateThinkingStage',
-                    stage: 'analyzing',
-                    message: 'Analyzing your request...'
-                });
-            } else if (progress.stage === 'processing') {
-                webview.postMessage({
-                    type: 'updateThinkingStage',
-                    stage: 'processing', 
-                    message: 'Processing your request...'
-                });
-            } else if (progress.stage === 'error') {
-                webview.postMessage({
-                    type: 'chatMessage',
-                    message: { type: 'assistant', message: progress.data }
-                });
-            }
-        } else if (progress.type === 'complete') {
-            // Final completion - hide any thinking indicators and show full response
-            webview.postMessage({
-                type: 'updateThinkingStage',
-                stage: 'completed',
-                message: progress.data
-            });
-        } else if (progress.type === 'error') {
-            // Errors coming from the CLI/server are not a separate thinking
-            // stage; display them as a normal assistant message so the UI
-            // remains a single conversation thread rather than spawning a
-            // second "error" process bubble.
-            webview.postMessage({
-                type: 'chatMessage',
-                message: { type: 'assistant', message: progress.data }
-            });
-        }
-    }
-
-    private handleClear(webview: vscode.Webview) {
-        if (!this.view) return;
-        
-        // Get the correct tab ID for this webview
-        const tabId = (this.view ? this.tabIdMap.get(this.view) : undefined) || this.currentTabId;
-        const session = this.chatController.getSession(tabId);
-        session.clear();
-        webview.postMessage({ type: 'clearChat' });
-    }
-
-    private getHtmlContent(webview: vscode.Webview): string {
-        return `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
-    <style>
-        body { 
-            margin: 0; 
-            padding: 10px; 
-            font-family: var(--vscode-font-family);
-            color: var(--vscode-foreground);
-            background: var(--vscode-editor-background);
-        }
-        #chat-container { 
-            display: flex; 
-            flex-direction: column; 
-            height: 100vh; 
-        }
-        #messages { 
-            flex: 1; 
-            overflow-y: auto; 
-            padding: 10px; 
-            margin-bottom: 10px;
-        }
-        .message { 
-            margin-bottom: 15px; 
-            padding: 8px; 
-            border-radius: 4px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        .user { 
-            background: var(--vscode-input-background);
-            border-left: 3px solid var(--vscode-button-background);
-            font-style: italic;
-        }
-        .assistant { 
-            background: var(--vscode-editor-inactiveSelectionBackground);
-            border-left: 3px solid red; /* make assistant responses have red border */
-        }
-        .thinking { 
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px;
-            background: var(--vscode-editor-inactiveSelectionBackground);
-            border-radius: 4px;
-            margin: 5px 0;
-        }
-        .thinking-stage {
-            font-weight: bold;
-            color: var(--vscode-textLink-foreground);
-        }
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: var(--vscode-textLink-foreground);
-            animation: spin 1s ease-in-out infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        .input-container { 
-            display: flex; 
-            gap: 5px; 
-        }
-        #input { 
-            flex: 1; 
-            padding: 8px;
-            background: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 2px;
-            resize: none;
-            overflow: hidden;
-            font-family: var(--vscode-font-family);
-            font-size: var(--vscode-font-size);
-            line-height: 1.4;
-            min-height: 30px;
-            max-height: 200px;
-            box-sizing: border-box;
-        }
-        button { 
-            padding: 8px 15px;
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            border-radius: 2px;
-            cursor: pointer;
-        }
-        button:hover { 
-            background: var(--vscode-button-hoverBackground);
-        }
-    </style>
-</head>
-<body>
-    <div id="chat-container">
-        <div id="messages"></div>
-        <div class="input-container">
-            <textarea id="input" placeholder="Ask Shai AI..." style="height: 30px;"></textarea>
-            <button id="send">Send</button>
-            <button id="clear">Clear</button>
-        </div>
-    </div>
-    <script>
-        const vscode = acquireVsCodeApi();
-        const messages = document.getElementById('messages');
-        const input = document.getElementById('input');
-        
-        // Auto-resize textarea function
-        function autoResize() {
-            this.style.height = 'auto';
-            // Set height to scrollHeight to allow vertical growth
-            const newHeight = Math.min(this.scrollHeight, 200);
-            this.style.height = newHeight + 'px';
-            
-            // Ensure we don't go below minimum height
-            if (this.scrollHeight < 30) {
-                this.style.height = '30px';
-            }
-        }
-        
-        // Set up auto-resize for textarea
-        input.addEventListener('input', autoResize);
-        input.addEventListener('paste', function() {
-            setTimeout(autoResize.bind(this), 0);
-        });
-        
-        // Also trigger resize on focus to handle initial state
-        input.addEventListener('focus', autoResize);
-        
-        // Handle window resize to maintain proper sizing
-        window.addEventListener('resize', function() {
-            if (document.activeElement === input) {
-                autoResize.call(input);
-            }
-        });
-        
-        function addMessage(type, text) {
-            const div = document.createElement('div');
-            div.className = 'message ' + type;
-            div.innerText = text;
-            messages.appendChild(div);
-            messages.scrollTop = messages.scrollHeight;
-        }
-        
-        function addThinkingIndicator(stage, message) {
-            const div = document.createElement('div');
-            div.className = 'message assistant thinking';
-            div.id = 'thinking-indicator-' + stage;
-            div.innerHTML = '<div class="spinner"></div> <span class="thinking-stage">' + stage.charAt(0).toUpperCase() + stage.slice(1) + '</span>: ' + message;
-            messages.appendChild(div);
-            messages.scrollTop = messages.scrollHeight;
-        }
-        
-        function updateThinkingIndicator(stage, message) {
-            const existingIndicator = document.getElementById('thinking-indicator-' + stage);
-            if (existingIndicator) {
-                // Update existing indicator
-                const messageSpan = existingIndicator.querySelector('.thinking-stage').nextSibling;
-                if (messageSpan) {
-                    messageSpan.textContent = message;
-                }
-            } else {
-                // Add new indicator if needed
-                addThinkingIndicator(stage, message);
-            }
-        }
-        
-        function removeThinkingIndicator(stage) {
-            const indicator = document.getElementById('thinking-indicator-' + stage);
-            if (indicator) {
-                indicator.remove();
-            }
-        }
-        
-        function sendMessage() {
-            const msg = input.value.trim();
-            if (msg) {
-                addThinkingIndicator('analyzing', 'Analyzing your request...');
-                vscode.postMessage({ type: 'chat-prompt', message: msg });
-                input.value = '';
-            }
-        }
-        
-        document.getElementById('send').onclick = sendMessage;
-        document.getElementById('clear').onclick = () => {
-            vscode.postMessage({ type: 'clear' });
-        };
-        input.onkeydown = (e) => {
-            if (e.key === 'Enter') {
-                if (e.shiftKey) {
-                    // Allow Shift+Enter for new line
-                    return true;
-                } else {
-                    // Prevent default and send message
-                    e.preventDefault();
-                    sendMessage();
-                    return false;
-                }
-            }
-        };
-        
-        window.addEventListener('message', event => {
-            const data = event.data;
-            if (data.type === 'chatMessage') {
-                // Remove any thinking indicators when we get a final message
-                removeThinkingIndicator('analyzing');
-                removeThinkingIndicator('processing'); 
-                removeThinkingIndicator('error');
-                addMessage(data.message.type, data.message.message);
-            } else if (data.type === 'clearChat') {
-                // Clear all thinking indicators when clearing chat
-                removeThinkingIndicator('analyzing');
-                removeThinkingIndicator('processing'); 
-                removeThinkingIndicator('error');
-                messages.innerHTML = '';
-            } else if (data.type === 'initChat') {
-                // Initialize chat with existing messages
-                data.messages.forEach(msg => {
-                    addMessage(msg.type, msg.message);
-                });
-            } else if (data.type === 'updateThinkingStage') {
-                // Update thinking stage with new information
-                if (data.stage === 'analyzing') {
-                    updateThinkingIndicator('analyzing', data.message);
-                } else if (data.stage === 'processing') {
-                    updateThinkingIndicator('processing', data.message);
-                } else if (data.stage === 'error') {
-                    updateThinkingIndicator('error', data.message);
-                } else if (data.stage === 'completed') {
-                    // When completed, remove all thinking indicators and show final result
-                    removeThinkingIndicator('analyzing');
-                    removeThinkingIndicator('processing'); 
-                    removeThinkingIndicator('error');
-                        addMessage('assistant', data.message);
-                }
-            } else if (data.type === 'streamChunk') {
-                // append text to the last assistant bubble (or create one if none)
-                let last = messages.querySelector('.message.assistant:last-child');
-                if (!last) {
-                    last = document.createElement('div');
-                    last.className = 'message assistant';
-                    messages.appendChild(last);
-                }
-                // remove the initial thinking spinner when the first chunk arrives
-                removeThinkingIndicator('analyzing');
-                last.textContent += data.chunk;
-                messages.scrollTop = messages.scrollHeight;
-            }
-        });
-    </script>
-</body>
-</html>`;
-    }
-
-    /**
-     * Create and show a standalone webview panel (in editor area) for chat.
-     */
     public static openPanel(extensionUri: vscode.Uri, chatController: ChatController) {
         const panel = vscode.window.createWebviewPanel(
             'shai-chat-panel',
@@ -473,5 +67,163 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             }
         });
         return panel;
+    }
+
+    private async handleChatPrompt(message: string, webview: vscode.Webview) {
+        const tabId = 'default';
+        const streaming = this.controller.getStreamingSession(tabId);
+        let accumulated = '';
+        let allReasoning = '';
+
+        const extractAndForwardReasoning = (text: string): string => {
+            // Extract <reasoning>...</reasoning> blocks
+            const reasoningRegex = /<reasoning>([\s\S]*?)<\/reasoning>/g;
+            let match: RegExpExecArray | null;
+            let cleaned = text;
+            while ((match = reasoningRegex.exec(text)) !== null) {
+                allReasoning += match[1];
+                cleaned = cleaned.replace(match[0], '');
+            }
+            
+            // Extract thinking blocks marked with ░...● patterns
+            const thinkingRegex = /░[^●]*●/g;
+            let thinkMatch: RegExpExecArray | null;
+            while ((thinkMatch = thinkingRegex.exec(text)) !== null) {
+                allReasoning += thinkMatch[0];
+                cleaned = cleaned.replace(thinkMatch[0], '');
+            }
+            
+            return cleaned;
+        };
+
+        const onProgress = (progress: any) => {
+            try {
+                const text: string = progress.data || '';
+                accumulated += text;
+
+                if (progress.type === 'progress') {
+                    // Extract reasoning from this chunk and send only clean text to chat
+                    const cleanedText = extractAndForwardReasoning(text);
+                    if (cleanedText.trim()) {
+                        webview.postMessage({ type: 'stream', data: cleanedText });
+                    }
+                    // Forward accumulated reasoning to reasoning provider
+                    if (allReasoning.trim() && ReasoningViewProvider.currentProvider) {
+                        ReasoningViewProvider.currentProvider.showReasoning(allReasoning);
+                    }
+                } else if (progress.type === 'complete') {
+                    // Extract any final reasoning blocks
+                    const cleanedAccumulated = extractAndForwardReasoning(accumulated);
+                    if (allReasoning.trim() && ReasoningViewProvider.currentProvider) {
+                        ReasoningViewProvider.currentProvider.showReasoning(allReasoning);
+                    }
+                    webview.postMessage({ type: 'complete', data: cleanedAccumulated });
+                } else if (progress.type === 'error') {
+                    webview.postMessage({ type: 'error', data: text });
+                }
+            } catch (err) {
+                console.error('Error in onProgress handler', err);
+            }
+        };
+
+        try {
+            await streaming.executeCommandWithStreaming(message, onProgress, this.controller.getInteractionMode(tabId));
+        } catch (err: any) {
+            webview.postMessage({ type: 'error', data: err?.message || String(err) });
+        }
+    }
+
+    private handleClear(webview: vscode.Webview) {
+        const tabId = 'default';
+        try {
+            const session = this.controller.getSession(tabId);
+            session.clear();
+        } catch (err) {
+            console.error('Error clearing session', err);
+        }
+        webview.postMessage({ type: 'clearChat' });
+    }
+
+    private getHtmlContent(webview: vscode.Webview): string {
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shai Chat</title>
+<style>
+    body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: transparent; margin: 8px; }
+    .messages { max-height: 60vh; overflow: auto; margin-bottom: 8px; }
+    .message { padding: 8px; border-radius: 6px; margin-bottom: 6px; }
+    .user { background: var(--vscode-editor-selectionBackground); }
+    .assistant { background: var(--vscode-editorWidget-background); }
+    .controls { display:flex; gap:8px; }
+    textarea { flex:1; min-height:40px; }
+</style>
+</head>
+<body>
+<div class="messages" id="messages"></div>
+<div class="controls">
+    <textarea id="prompt" placeholder="Type your prompt..."></textarea>
+    <button id="send">Send</button>
+    <button id="clear">Clear</button>
+</div>
+<script>
+(function(){
+    const vscode = acquireVsCodeApi();
+    const sendBtn = document.getElementById('send');
+    const clearBtn = document.getElementById('clear');
+    const prompt = document.getElementById('prompt');
+    const messages = document.getElementById('messages');
+    let lastAssistantEl = null;
+
+    function appendMessage(text, cls) {
+        const el = document.createElement('div');
+        el.className = 'message ' + cls;
+        el.textContent = text;
+        messages.appendChild(el);
+        messages.scrollTop = messages.scrollHeight;
+        return el;
+    }
+
+    sendBtn?.addEventListener('click', () => {
+        const value = (prompt.value || '').trim();
+        if (!value) return;
+        appendMessage(value, 'user');
+        vscode.postMessage({ type: 'chat-prompt', message: value });
+        prompt.value = '';
+        lastAssistantEl = appendMessage('(thinking...)', 'assistant');
+    });
+
+    clearBtn?.addEventListener('click', () => {
+        messages.innerHTML = '';
+        vscode.postMessage({ type: 'clear' });
+    });
+
+    window.addEventListener('message', event => {
+        const msg = event.data;
+        if (!msg) return;
+        if (msg.type === 'stream') {
+            if (!lastAssistantEl) lastAssistantEl = appendMessage('', 'assistant');
+            lastAssistantEl.textContent = (lastAssistantEl.textContent === '(thinking...)' ? '' : lastAssistantEl.textContent) + msg.data;
+            messages.scrollTop = messages.scrollHeight;
+        } else if (msg.type === 'complete') {
+            if (!lastAssistantEl) lastAssistantEl = appendMessage(msg.data, 'assistant');
+            else lastAssistantEl.textContent = msg.data;
+            lastAssistantEl = null;
+        } else if (msg.type === 'error') {
+            appendMessage('Error: ' + msg.data, 'assistant');
+            lastAssistantEl = null;
+        } else if (msg.type === 'clear') {
+            messages.innerHTML = '';
+            lastAssistantEl = null;
+        } else if (msg.type === 'clearStreaming') {
+            lastAssistantEl = null;
+        }
+    });
+})();
+</script>
+</body>
+</html>`;
     }
 }

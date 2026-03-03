@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ChatController } from '../chat/controller';
 import { ChatViewProvider } from '../views/chatView';
-import { ReadmeViewProvider } from '../views/readmeView';
+import { ReasoningViewProvider } from '../views/reasoningView';
 
 export function registerCommands(
     context: vscode.ExtensionContext,
@@ -19,8 +19,8 @@ export function registerCommands(
             vscode.window.showInformationMessage('Chat cleared');
         }),
         
-        vscode.commands.registerCommand('shai-vscode.showReadme', () => {
-            ReadmeViewProvider.openPanel(context.extensionUri);
+        vscode.commands.registerCommand('shai-vscode.showReasoning', () => {
+            ReasoningViewProvider.openPanel(context.extensionUri);
         })
     );
 }
