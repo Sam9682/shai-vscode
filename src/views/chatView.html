@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shai Chat</title>
+<style>
+    body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: transparent; margin: 8px; }
+    .messages { max-height: 60vh; overflow: auto; margin-bottom: 8px; }
+    .message { padding: 12px; border-radius: 6px; margin-bottom: 10px; line-height: 1.5; }
+    .user { background: var(--vscode-editor-selectionBackground); }
+    .assistant { background: var(--vscode-editorWidget-background); }
+    .controls { display:flex; gap:8px; }
+    textarea { flex:1; min-height:40px; }
+    pre { background: #f4f4f4; padding: 12px; border-radius: 4px; overflow-x: auto; margin: 10px 0; }
+    code { background: #f4f4f4; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
+    ul { margin: 10px 0; padding-left: 20px; }
+    li { margin: 5px 0; }
+    h1, h2, h3 { margin-top: 16px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="messages" id="messages"></div>
+<div class="controls">
+    <textarea id="prompt" placeholder="Type your prompt..."></textarea>
+    <button id="send">Send</button>
+    <button id="clear">Clear</button>
+</div>
+<script>
+(function(){
+    const vscode = acquireVsCodeApi();
+    const sendBtn = document.getElementById('send');
+    const clearBtn = document.getElementById('clear');
+    const prompt = document.getElementById('prompt');
+    const messages = document.getElementById('messages');
+    let lastAssistantEl = null;
+
+    function appendMessage(text, cls) {
+        const el = document.createElement('div');
+        el.className = 'message ' + cls;
+        el.innerHTML = formatMessage(text);
+        messages.appendChild(el);
+        messages.scrollTop = messages.scrollHeight;
+        return el;
+    }
+
+    function formatMessage(text) {
+        // Convert newlines to <br> and handle basic markdown
+        let formatted = text.replace(/\n/g, '<br>');
+        
+        // Handle code blocks (```code```)
+        formatted = formatted.replace(/`{3}([^`]+)`{3}/g, '<pre style="background: #f4f4f4; padding: 8px; border-radius: 4px; overflow-x: auto;"><code>$1</code></pre>');
+        
+        // Handle inline code (`code`)
+        formatted = formatted.replace(/`([^`]+)`/g, '<code style="background: #f4f4f4; padding: 2px 4px; border-radius: 3px;">$1</code>');
+        
+        // Handle bold text (**bold**)
+        formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        
+        // Handle italic text (*italic*)
+        formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        
+        // Handle lists
+        formatted = formatted.replace(/^\s*[-*+]\s+(.*)$/gm, '<li>$1</li>');
+        formatted = formatted.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
+        
+        // Handle headers (# Header)
+        formatted = formatted.replace(/^###\s+(.*)$/gm, '<h3 style="margin-top: 16px; margin-bottom: 8px;">$1</h3>');
+        formatted = formatted.replace(/^##\s+(.*)$/gm, '<h2 style="margin-top: 20px; margin-bottom: 10px;">$1</h2>');
+        formatted = formatted.replace(/^#\s+(.*)$/gm, '<h1 style="margin-top: 24px; margin-bottom: 12px;">$1</h1>');
+        
+        return formatted;
+    }
+
+    if (sendBtn) {
+        sendBtn.addEventListener('click', () => {
+            const value = (prompt.value || '').trim();
+            if (!value) return;
+            appendMessage(value, 'user');
+            vscode.postMessage({ type: 'chat-prompt', message: value });
+            prompt.value = '';
+            lastAssistantEl = appendMessage('(thinking...)', 'assistant');
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            messages.innerHTML = '';
+            vscode.postMessage({ type: 'clear' });
+        });
+    }
+
+    window.addEventListener('message', event => {
+        const msg = event.data;
+        if (!msg) return;
+        if (msg.type === 'stream') {
+            if (!lastAssistantEl) lastAssistantEl = appendMessage('', 'assistant');
+            lastAssistantEl.innerHTML = formatMessage((lastAssistantEl.innerHTML === '(thinking...)') ? msg.data : lastAssistantEl.innerHTML + msg.data);
+            messages.scrollTop = messages.scrollHeight;
+        } else if (msg.type === 'complete') {
+            if (!lastAssistantEl) lastAssistantEl = appendMessage(msg.data, 'assistant');
+            else lastAssistantEl.innerHTML = formatMessage(msg.data);
+            lastAssistantEl = null;
+        } else if (msg.type === 'error') {
+            appendMessage('Error: ' + msg.data, 'assistant');
+            lastAssistantEl = null;
+        } else if (msg.type === 'clear') {
+            messages.innerHTML = '';
+            lastAssistantEl = null;
+        } else if (msg.type === 'clearStreaming') {
+            lastAssistantEl = null;
+        }
+    });
+})();
+</script>
+</body>
+</html>

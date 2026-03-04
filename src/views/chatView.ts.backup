@@ -1,0 +1,257 @@
+import * as vscode from 'vscode';
+import { ChatController } from '../chat/controller';
+import { ReasoningViewProvider } from './reasoningView';
+
+export class ChatViewProvider implements vscode.WebviewViewProvider {
+    public static readonly viewType = 'shai.chatView';
+    private _view?: vscode.WebviewView;
+    private controller: ChatController;
+
+    constructor(private readonly extensionUri: vscode.Uri, contextOrController: vscode.ExtensionContext | ChatController) {
+        if ((contextOrController as ChatController).getSession !== undefined) {
+            this.controller = contextOrController as ChatController;
+        } else {
+            this.controller = new ChatController(contextOrController as vscode.ExtensionContext);
+        }
+    }
+
+    resolveWebviewView(webviewView: vscode.WebviewView) {
+        this._view = webviewView;
+        webviewView.webview.options = {
+            enableScripts: true,
+            localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')]
+        };
+
+        webviewView.webview.html = this.getHtmlContent(webviewView.webview);
+
+        webviewView.webview.onDidReceiveMessage(async (message) => {
+            try {
+                if (!this._view) return;
+                const webview = this._view.webview;
+                switch (message.type) {
+                    case 'chat-prompt': {
+                        const text: string = message.message || '';
+                        if (!text.trim()) return;
+                        webview.postMessage({ type: 'clearStreaming' });
+                        this.handleChatPrompt(text, webview);
+                        break;
+                    }
+                    case 'clear': {
+                        webview.postMessage({ type: 'clear' });
+                        break;
+                    }
+                }
+            } catch (err) {
+                console.error('Error handling webview message', err);
+            }
+        });
+    }
+
+    public static openPanel(extensionUri: vscode.Uri, chatController: ChatController) {
+        const panel = vscode.window.createWebviewPanel(
+            'shai-chat-panel',
+            'Shai Chat',
+            vscode.ViewColumn.One,
+            { enableScripts: true, localResourceRoots: [extensionUri] }
+        );
+        const provider = new ChatViewProvider(extensionUri, chatController);
+        panel.webview.html = provider.getHtmlContent(panel.webview);
+        panel.webview.onDidReceiveMessage(async (data) => {
+            switch (data.type) {
+                case 'chat-prompt':
+                    await provider.handleChatPrompt(data.message, panel.webview);
+                    break;
+                case 'clear':
+                    provider.handleClear(panel.webview);
+                    break;
+            }
+        });
+        return panel;
+    }
+
+    private async handleChatPrompt(message: string, webview: vscode.Webview) {
+        const tabId = 'default';
+        const streaming = this.controller.getStreamingSession(tabId);
+        let accumulated = '';
+        let allReasoning = '';
+
+        const extractAndForwardReasoning = (text: string): string => {
+            // Extract <reasoning>...</reasoning> blocks
+            const reasoningRegex = /<reasoning>([\s\S]*?)<\/reasoning>/g;
+            let match: RegExpExecArray | null;
+            let cleaned = text;
+            while ((match = reasoningRegex.exec(text)) !== null) {
+                allReasoning += match[1];
+                cleaned = cleaned.replace(match[0], '');
+            }
+            // Extract thinking blocks marked with ░...● patterns
+            const thinkingRegex = /░[^●]*●/g;
+            let thinkMatch: RegExpExecArray | null;
+            while ((thinkMatch = thinkingRegex.exec(text)) !== null) {
+                allReasoning += thinkMatch[0];
+                cleaned = cleaned.replace(thinkMatch[0], '');
+            }
+            return cleaned;
+        };
+
+        const onProgress = (progress: any) => {
+            try {
+                const text: string = progress.data || '';
+                accumulated += text;
+                if (progress.type === 'progress') {
+                    const cleanedText = extractAndForwardReasoning(text);
+                    if (cleanedText.trim()) {
+                        webview.postMessage({ type: 'stream', data: cleanedText });
+                    }
+                    if (allReasoning.trim() && ReasoningViewProvider.currentProvider) {
+                        ReasoningViewProvider.currentProvider.showReasoning(allReasoning);
+                         allReasoning = ''; // Reset after each request
+                    }
+                } else if (progress.type === 'complete') {
+                    const cleanedAccumulated = extractAndForwardReasoning(accumulated);
+                    if (allReasoning.trim() && ReasoningViewProvider.currentProvider) {
+                        ReasoningViewProvider.currentProvider.showReasoning(allReasoning);
+                    }
+                    webview.postMessage({ type: 'complete', data: cleanedAccumulated });
+                } else if (progress.type === 'error') {
+                    webview.postMessage({ type: 'error', data: text });
+                }
+            } catch (err) {
+                console.error('Error in onProgress handler', err);
+            }
+        };
+
+        try {
+            await streaming.executeCommandWithStreaming(message, onProgress, this.controller.getInteractionMode(tabId));
+        } catch (err: any) {
+            webview.postMessage({ type: 'error', data: err?.message || String(err) });
+        }
+    }
+
+    private handleClear(webview: vscode.Webview) {
+        const tabId = 'default';
+        try {
+            const session = this.controller.getSession(tabId);
+            session.clear();
+        } catch (err) {
+            console.error('Error clearing session', err);
+        }
+        webview.postMessage({ type: 'clearChat' });
+    }
+
+    private getHtmlContent(webview: vscode.Webview): string {
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shai Chat</title>
+<style>
+    body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: transparent; margin: 8px; }
+    .messages { max-height: 60vh; overflow: auto; margin-bottom: 8px; }
+    .message { padding: 12px; border-radius: 6px; margin-bottom: 10px; line-height: 1.5; }
+    .user { background: var(--vscode-editor-selectionBackground); }
+    .assistant { background: var(--vscode-editorWidget-background); }
+    .controls { display:flex; gap:8px; }
+    textarea { flex:1; min-height:40px; }
+    pre { background: #f4f4f4; padding: 12px; border-radius: 4px; overflow-x: auto; margin: 10px 0; }
+    code { background: #f4f4f4; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
+    ul { margin: 10px 0; padding-left: 20px; }
+    li { margin: 5px 0; }
+    h1, h2, h3 { margin-top: 16px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="messages" id="messages"></div>
+<div class="controls">
+    <textarea id="prompt" placeholder="Type your prompt..."></textarea>
+    <button id="send">Send</button>
+    <button id="clear">Clear</button>
+</div>
+<script>
+(function(){
+    const vscode = acquireVsCodeApi();
+    const sendBtn = document.getElementById('send');
+    const clearBtn = document.getElementById('clear');
+    const prompt = document.getElementById('prompt');
+    const messages = document.getElementById('messages');
+    let lastAssistantEl = null;
+
+    function appendMessage(text, cls) {
+        const el = document.createElement('div');
+        el.className = 'message ' + cls;
+        el.innerHTML = formatMessage(text);
+        messages.appendChild(el);
+        messages.scrollTop = messages.scrollHeight;
+        return el;
+    }
+
+    function formatMessage(text) {
+        // Convert newlines to <br> and handle basic markdown
+        let formatted = text.replace(/\\n/g, '<br>');
+        
+        // Handle code blocks (```code```)
+        formatted = formatted.replace(/\\`\\`\\`([^\\`]+)\\`\\`\\`/g, '<pre style="background: #f4f4f4; padding: 8px; border-radius: 4px; overflow-x: auto;"><code>$1</code></pre>');
+        
+        // Handle inline code (\`code\`)
+        formatted = formatted.replace(/\\`([^\\`]+)\\`/g, '<code style="background: #f4f4f4; padding: 2px 4px; border-radius: 3px;">$1</code>');
+        
+        // Handle bold text (**bold**)
+        formatted = formatted.replace(/\\*\\*([^\\*]+)\\*\\*/g, '<strong>$1</strong>');
+        
+        // Handle italic text (*italic*)
+        formatted = formatted.replace(/\\*([^\\*]+)\\*/g, '<em>$1</em>');
+        
+        // Handle lists
+        formatted = formatted.replace(/^\\s*[-*+]\\s+(.*)$/gm, '<li>$1</li>');
+        formatted = formatted.replace(/(<li>.*<\\/li>)/gs, '<ul>$1</ul>');
+        
+        // Handle headers (# Header)
+        formatted = formatted.replace(/^###\\s+(.*)$/gm, '<h3 style="margin-top: 16px; margin-bottom: 8px;">$1</h3>');
+        formatted = formatted.replace(/^##\\s+(.*)$/gm, '<h2 style="margin-top: 20px; margin-bottom: 10px;">$1</h2>');
+        formatted = formatted.replace(/^#\\s+(.*)$/gm, '<h1 style="margin-top: 24px; margin-bottom: 12px;">$1</h1>');
+        
+        return formatted;
+    }
+
+    sendBtn?.addEventListener('click', () => {
+        const value = (prompt.value || '').trim();
+        if (!value) return;
+        appendMessage(value, 'user');
+        vscode.postMessage({ type: 'chat-prompt', message: value });
+        prompt.value = '';
+        lastAssistantEl = appendMessage('(thinking...)', 'assistant');
+    });
+
+    clearBtn?.addEventListener('click', () => {
+        messages.innerHTML = '';
+        vscode.postMessage({ type: 'clear' });
+    });
+
+    window.addEventListener('message', event => {
+        const msg = event.data;
+        if (!msg) return;
+        if (msg.type === 'stream') {
+            if (!lastAssistantEl) lastAssistantEl = appendMessage('', 'assistant');
+            lastAssistantEl.innerHTML = formatMessage((lastAssistantEl.innerHTML === '(thinking...)') ? msg.data : lastAssistantEl.innerHTML + msg.data);
+            messages.scrollTop = messages.scrollHeight;
+        } else if (msg.type === 'complete') {
+            if (!lastAssistantEl) lastAssistantEl = appendMessage(msg.data, 'assistant');
+            else lastAssistantEl.innerHTML = formatMessage(msg.data);
+            lastAssistantEl = null;
+        } else if (msg.type === 'error') {
+            appendMessage('Error: ' + msg.data, 'assistant');
+            lastAssistantEl = null;
+        } else if (msg.type === 'clear') {
+            messages.innerHTML = '';
+            lastAssistantEl = null;
+        } else if (msg.type === 'clearStreaming') {
+            lastAssistantEl = null;
+        }
+    });
+})();
+</script>
+</body>
+</html>`;
+    }
+}

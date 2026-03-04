@@ -71,7 +71,14 @@
         const clear = document.getElementById('clear');
         
         // Auto-resize textarea based on content
-        input.addEventListener('input', function() {
+        input.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        send.click();
+    }
+});
+
+input.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 200) + 'px'; // Limit max height
         });
@@ -90,11 +97,39 @@
             vscode.postMessage({ command: 'clearChat' });
         });
         
+        function formatMessage(text) {
+            // Convert newlines to <br> and handle basic markdown
+            let formatted = text.replace(/\n/g, '<br>');
+            
+            // Handle code blocks (```code```)
+            formatted = formatted.replace(/```([\s\S]*?)```/g, '<pre style="background: #f4f4f4; padding: 8px; border-radius: 4px; overflow-x: auto;"><code>$1</code></pre>');
+            
+            // Handle inline code (`code`)
+            formatted = formatted.replace(/`([^`]+)`/g, '<code style="background: #f4f4f4; padding: 2px 4px; border-radius: 3px;">$1</code>');
+            
+            // Handle bold text (**bold**)
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Handle italic text (*italic*)
+            formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // Handle lists
+            formatted = formatted.replace(/^\s*[-*+]\s+(.*)$/gm, '<li>$1</li>');
+            formatted = formatted.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
+            
+            // Handle headers (# Header)
+            formatted = formatted.replace(/^###\s+(.*)$/gm, '<h3 style="margin-top: 16px; margin-bottom: 8px;">$1</h3>');
+            formatted = formatted.replace(/^##\s+(.*)$/gm, '<h2 style="margin-top: 20px; margin-bottom: 10px;">$1</h2>');
+            formatted = formatted.replace(/^#\s+(.*)$/gm, '<h1 style="margin-top: 24px; margin-bottom: 12px;">$1</h1>');
+            
+            return formatted;
+        }
+        
         window.addEventListener('message', event => {
             const message = event.data;
             if (message.command === 'receiveMessage') {
                 const div = document.createElement('div');
-                div.textContent = message.text;
+                div.innerHTML = formatMessage(message.text);
                 messages.appendChild(div);
                 messages.scrollTop = messages.scrollHeight;
             }
