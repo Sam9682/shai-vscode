@@ -195,6 +195,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return el;
     }
 
+    // Handle SEND button click
     sendBtn?.addEventListener('click', () => {
         const value = (prompt.value || '').trim();
         if (!value) return;
@@ -202,6 +203,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         vscode.postMessage({ type: 'chat-prompt', message: value });
         prompt.value = '';
         lastAssistantEl = appendMessage('(thinking...)', 'assistant');
+    });
+
+    // Handle ENTER key press in textarea
+    prompt?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault(); // Prevent default new line behavior
+            const value = (prompt.value || '').trim();
+            if (!value) return;
+            appendMessage(value, 'user');
+            vscode.postMessage({ type: 'chat-prompt', message: value });
+            prompt.value = '';
+            lastAssistantEl = appendMessage('(thinking...)', 'assistant');
+        }
     });
 
     clearBtn?.addEventListener('click', () => {
