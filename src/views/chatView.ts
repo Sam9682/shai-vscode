@@ -71,9 +71,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     private async handleChatPrompt(message: string, webview: vscode.Webview) {
         const tabId = 'default';
-        const streaming = this.controller.getStreamingSession(tabId);
-        let accumulated = '';
-        let allReasoning = '';
+        
+        // Create a clean message for shell execution that doesn't contain problematic content
+        // The actual formatting context will be handled by Shai's prompt processing
+        const cleanMessage = message;
 
         const extractAndForwardReasoning = (text: string): string => {
             // Extract <reasoning>...</reasoning> blocks
@@ -81,7 +82,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             let match: RegExpExecArray | null;
             let cleaned = text;
             while ((match = reasoningRegex.exec(text)) !== null) {
-                allReasoning += match[1];
+                if (ReasoningViewProvider.currentProvider) {
+                    ReasoningViewProvider.currentProvider.showReasoning(match[1]);
+                }
                 cleaned = cleaned.replace(match[0], '');
             }
             
@@ -89,8 +92,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const thinkingRegex = /░[^●]*●/g;
             let thinkMatch: RegExpExecArray | null;
             while ((thinkMatch = thinkingRegex.exec(text)) !== null) {
-                allReasoning += thinkMatch[0];
+                if (ReasoningViewProvider.currentProvider) {
+                    ReasoningViewProvider.currentProvider.showReasoning(thinkMatch[0]);
+                }
                 cleaned = cleaned.replace(thinkMatch[0], '');
+            }
+            
+            // Extract internal SHAI messages like "░ Qwen3-Coder-30B-A3B-Instruct on ovhcloud..."
+            const internalMessageRegex = /░\s*[A-Za-z0-9\-_]+\s*[A-Za-z0-9\-_]+\s*on\s+[A-Za-z0-9\-_]+/g;
+            let internalMatch: RegExpExecArray | null;
+            while ((internalMatch = internalMessageRegex.exec(text)) !== null) {
+                if (ReasoningViewProvider.currentProvider) {
+                    ReasoningViewProvider.currentProvider.showReasoning(internalMatch[0]);
+                }
+                cleaned = cleaned.replace(internalMatch[0], '');
             }
             
             return cleaned;
@@ -99,24 +114,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const onProgress = (progress: any) => {
             try {
                 const text: string = progress.data || '';
-                accumulated += text;
-
+                
                 if (progress.type === 'progress') {
-                    // Extract reasoning from this chunk and send only clean text to chat
+                    // Process this chunk for reasoning extraction and send to UI
                     const cleanedText = extractAndForwardReasoning(text);
                     if (cleanedText.trim()) {
                         webview.postMessage({ type: 'stream', data: cleanedText });
                     }
-                    // Forward accumulated reasoning to reasoning provider
-                    if (allReasoning.trim() && ReasoningViewProvider.currentProvider) {
-                        ReasoningViewProvider.currentProvider.showReasoning(allReasoning);
-                    }
                 } else if (progress.type === 'complete') {
-                    // Extract any final reasoning blocks
-                    const cleanedAccumulated = extractAndForwardReasoning(accumulated);
-                    if (allReasoning.trim() && ReasoningViewProvider.currentProvider) {
-                        ReasoningViewProvider.currentProvider.showReasoning(allReasoning);
-                    }
+                    // For complete, we process the final text
+                    const cleanedAccumulated = extractAndForwardReasoning(text);
                     webview.postMessage({ type: 'complete', data: cleanedAccumulated });
                 } else if (progress.type === 'error') {
                     webview.postMessage({ type: 'error', data: text });
@@ -127,7 +134,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         };
 
         try {
-            await streaming.executeCommandWithStreaming(message, onProgress, this.controller.getInteractionMode(tabId));
+            // Pass only the clean user message to the Shai command
+            // The formatting context will be handled by Shai's internal prompting
+            await this.controller.getStreamingSession(tabId).executeCommandWithStreaming(cleanMessage, onProgress, this.controller.getInteractionMode(tabId));
         } catch (err: any) {
             webview.postMessage({ type: 'error', data: err?.message || String(err) });
         }

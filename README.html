@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shai VS Code Extension - README</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #6c757d;
+            font-size: 1.1em;
+        }
+        .content {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #3498db;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        code {
+            background-color: #f1f1f1;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        ul, ol {
+            margin: 10px 0 20px 20px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Shai VS Code Extension</h1>
+        <div class="subtitle">A VS Code extension that integrates Shai AI assistant directly into your editor with a chat interface.</div>
+    </div>
+    
+    <div class="content">
+        <h2>Features</h2>
+        <ul>
+            <li><strong>Chat Interface</strong>: Interactive chat panel in VS Code sidebar</li>
+            <li><strong>Shell Integration</strong>: Executes Shai AI commands directly through your system shell</li>
+            <li><strong>Workspace Aware</strong>: Runs commands in your current workspace context</li>
+            <li><strong>Customizable</strong>: Configure the Shai command path in settings</li>
+        </ul>
+
+        <h2>Installation</h2>
+        <ol>
+            <li>Install the extension from the <code>.vsix</code> file:
+                <pre>code --install-extension shai-vscode-0.0.1.vsix</pre>
+            </li>
+            <li>Or build from source:
+                <pre>
+npm install
+npm run compile
+                </pre>
+            </li>
+        </ol>
+
+        <h2>Prerequisites</h2>
+        <ul>
+            <li>VS Code version 1.74.0 or higher</li>
+            <li>Shai AI command-line tool installed and accessible in your PATH</li>
+        </ul>
+
+        <h2>Configuration</h2>
+        <p>Open VS Code Settings (Ctrl+,) and search for "Shai VS Code":</p>
+        <ul>
+            <li><strong>shai-vscode.shaiCommand</strong>: Shell command to execute Shai AI
+                <ul>
+                    <li>Default: <code>shai</code></li>
+                    <li>Examples: <code>/usr/local/bin/shai</code>, <code>python /path/to/shai.py</code>, <code>./shai</code></li>
+                </ul>
+            </li>
+            <li><strong>shai-vscode.useWSL</strong>: Run Shai command in WSL bash environment
+                <ul>
+                    <li>Default: <code>null</code> (auto-detect: uses WSL on Windows, native shell on Linux/Mac)</li>
+                    <li>Set to <code>true</code> to force WSL usage</li>
+                    <li>Set to <code>false</code> to force native shell usage</li>
+                </ul>
+            </li>
+            <li><strong>shai-vscode.useServer</strong>: When enabled the extension starts a single long-running <code>shai server</code> process and communicates with it over HTTP using Server-Sent Events (SSE). This eliminates the artificial "Analyzing…"/"Error…" stages and allows the UI to render partial responses as they arrive. Requires that your <code>shai</code> executable support a <code>server</code> subcommand (or equivalent) and that the URL below matches where it listens.</li>
+            <li><strong>shai-vscode.serverUrl</strong>: URL of the local Shai HTTP/SSE server (default <code>http://127.0.0.1:8000</code>). Only used when <code>useServer</code> is <code>true</code>.</li>
+        </ul>
+
+        <h2>Usage</h2>
+        <ol>
+            <li>Click the Shai icon in the Activity Bar (left sidebar)</li>
+            <li>Type your question or command in the chat input</li>
+            <li>Press Enter or click Send</li>
+            <li>Shai AI will process your request and display the response</li>
+        </ol>
+
+        <h2>Example Commands</h2>
+        <ul>
+            <li><code>hello</code> - Greet Shai AI</li>
+            <li><code>list all files in the current folder</code> - Execute file listing</li>
+            <li>Any command that your Shai AI tool supports</li>
+        </ul>
+
+        <h2>Development</h2>
+        <h3>Build</h3>
+        <pre>npm run compile</pre>
+
+        <h3>Watch Mode</h3>
+        <pre>npm run watch</pre>
+
+        <h3>Package Extension</h3>
+        <pre>npx vsce package</pre>
+
+        <h2>Windows Support</h2>
+        <p>The extension automatically detects Windows and runs Shai commands through WSL bash, since Shai AI is only available for Linux/Mac. Windows paths are automatically converted to WSL format (e.g., <code>C:\Users\user</code> becomes <code>/mnt/c/Users/user</code>).</p>
+
+        <h3>Prerequisites for Windows:</h3>
+        <ul>
+            <li>WSL (Windows Subsystem for Linux) installed</li>
+            <li>Shai AI installed in your WSL environment</li>
+        </ul>
+
+        <h2>Troubleshooting</h2>
+        <h3>Error: Command not found (Windows)</h3>
+        <ul>
+            <li>Ensure WSL is installed and working: <code>wsl --version</code></li>
+            <li>Install Shai AI in your WSL environment, not Windows</li>
+            <li>Test Shai in WSL: <code>wsl bash -c "shai hello"</code></li>
+        </ul>
+
+        <h3>Error: Command not found (Linux/macOS)</h3>
+        <ul>
+            <li>Ensure Shai AI is installed and in your PATH</li>
+            <li>Configure the full path in settings: <code>shai-vscode.shaiCommand</code></li>
+            <li>On macOS, if using Homebrew, Shai should be installed in <code>/usr/local/bin</code> or <code>/opt/homebrew/bin</code></li>
+        </ul>
+
+        <h3>No output from commands</h3>
+        <ul>
+            <li>Check that your Shai command is working in terminal (or WSL on Windows)</li>
+            <li>Verify workspace folder permissions</li>
+        </ul>
+
+        <h2>Repository</h2>
+        <p><a href="https://github.com/Sam9682/shai-vscode">https://github.com/Sam9682/shai-vscode</a></p>
+
+        <h2>License</h2>
+        <p>See <a href="LICENSE">LICENSE</a> file for details.</p>
+
+        <h2>Version</h2>
+        <p>0.0.1 - Initial release</p>
+    </div>
+    
+    <div class="footer">
+        <p>Documentation generated on March 5, 2026</p>
+    </div>
+</body>
+</html>

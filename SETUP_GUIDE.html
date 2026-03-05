@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shai VS Code Extension - Setup Guide</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #6c757d;
+            font-size: 1.1em;
+        }
+        .content {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #3498db;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        code {
+            background-color: #f1f1f1;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        ul, ol {
+            margin: 10px 0 20px 20px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Shai VS Code Extension - Setup Guide</h1>
+        <div class="subtitle">Detailed instructions for setting up and configuring the Shai VS Code Extension</div>
+    </div>
+    
+    <div class="content">
+        <h2>Prerequisites</h2>
+        <ul>
+            <li>Visual Studio Code version 1.74.0 or higher</li>
+            <li>Shai AI command-line tool installed and accessible in your PATH</li>
+            <li>Node.js (for building from source)</li>
+        </ul>
+
+        <h2>Installation Methods</h2>
+        
+        <h3>Method 1: Install from .vsix file</h3>
+        <p>Download the latest <code>.vsix</code> file and install it directly in VS Code:</p>
+        <pre>code --install-extension shai-vscode-0.0.1.vsix</pre>
+        
+        <h3>Method 2: Build from Source</h3>
+        <ol>
+            <li>Clone or download the repository</li>
+            <li>Navigate to the project directory</li>
+            <li>Install dependencies:
+                <pre>npm install</pre>
+            </li>
+            <li>Compile the extension:
+                <pre>npm run compile</pre>
+            </li>
+            <li>Package the extension:
+                <pre>npx vsce package</pre>
+            </li>
+            <li>Install the generated <code>.vsix</code> file in VS Code</li>
+        </ol>
+
+        <h2>Configuration</h2>
+        
+        <h3>Basic Configuration</h3>
+        <p>Open VS Code Settings (Ctrl+,) and search for "Shai VS Code". Configure the following settings:</p>
+        
+        <ul>
+            <li><strong>shai-vscode.shaiCommand</strong>: Path to the Shai AI command
+                <ul>
+                    <li>Default: <code>shai</code></li>
+                    <li>Examples: <code>/usr/local/bin/shai</code>, <code>python /path/to/shai.py</code>, <code>./shai</code></li>
+                </ul>
+            </li>
+            <li><strong>shai-vscode.useWSL</strong>: Enable/disable WSL usage on Windows
+                <ul>
+                    <li>Default: <code>null</code> (auto-detect)</li>
+                    <li>Set to <code>true</code> to force WSL usage</li>
+                    <li>Set to <code>false</code> to force native shell usage</li>
+                </ul>
+            </li>
+        </ul>
+
+        <h3>Advanced Configuration</h3>
+        <ul>
+            <li><strong>shai-vscode.useServer</strong>: Enable server mode for improved performance
+                <ul>
+                    <li>When enabled, starts a long-running Shai server process</li>
+                    <li>Provides real-time updates during processing</li>
+                </ul>
+            </li>
+            <li><strong>shai-vscode.serverUrl</strong>: URL of the local Shai HTTP/SSE server
+                <ul>
+                    <li>Default: <code>http://127.0.0.1:8000</code></li>
+                    <li>Only used when <code>useServer</code> is <code>true</code></li>
+                </ul>
+            </li>
+        </ul>
+
+        <h2>Windows-Specific Setup</h2>
+        <p>The extension automatically detects Windows and runs Shai commands through WSL bash, since Shai AI is only available for Linux/Mac.</p>
+        
+        <h3>Prerequisites for Windows:</h3>
+        <ul>
+            <li>WSL (Windows Subsystem for Linux) installed</li>
+            <li>Shai AI installed in your WSL environment</li>
+        </ul>
+        
+        <h3>Verification Steps:</h3>
+        <ol>
+            <li>Verify WSL is installed and working: <code>wsl --version</code></li>
+            <li>Test Shai in WSL: <code>wsl bash -c "shai hello"</code></li>
+            <li>Ensure Shai is installed in your WSL environment</li>
+        </ol>
+
+        <h2>Testing the Installation</h2>
+        <ol>
+            <li>Restart VS Code</li>
+            <li>Open the Shai panel from the Activity Bar (left sidebar)</li>
+            <li>Enter a simple command like "hello" in the chat input</li>
+            <li>Press Enter or click Send</li>
+            <li>Verify that Shai responds appropriately</li>
+        </ol>
+
+        <h2>Troubleshooting</h2>
+        
+        <h3>Common Issues and Solutions</h3>
+        <ul>
+            <li><strong>Command not found</strong>: Ensure Shai is installed and accessible in your PATH</li>
+            <li><strong>WSL not detected</strong>: Verify WSL is installed and working with <code>wsl --version</code></li>
+            <li><strong>No output from commands</strong>: Test the Shai command directly in your terminal</li>
+        </ul>
+
+        <h3>Debugging Tips</h3>
+        <ul>
+            <li>Check the VS Code Developer Tools Console for errors</li>
+            <li>Verify the Shai command works outside of VS Code</li>
+            <li>Confirm the correct path is set in extension settings</li>
+        </ul>
+    </div>
+    
+    <div class="footer">
+        <p>Setup Guide - Documentation generated on March 5, 2026</p>
+    </div>
+</body>
+</html>
