@@ -163,7 +163,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 <style>
     body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: transparent; margin: 8px; }
     .messages { max-height: 60vh; overflow: auto; margin-bottom: 8px; }
-    .message { padding: 8px; border-radius: 6px; margin-bottom: 6px; }
+    .message { padding: 8px; border-radius: 6px; margin-bottom: 6px; white-space: pre-wrap; word-wrap: break-word; }
     .user { background: var(--vscode-editor-selectionBackground); }
     .assistant { background: var(--vscode-editorWidget-background); }
     .controls { display:flex; gap:8px; }
