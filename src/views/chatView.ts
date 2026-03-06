@@ -123,9 +123,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         const onProgress = (progress: any) => {
             try {
-                const text: string = progress.data || '';
+                let text: string = progress.data || '';
                 
                 if (progress.type === 'progress') {
+                    // Check if message starts with "✻ " for reasoning
+                    if (text.startsWith('✻ ')) {
+                        const reasoningText = text.substring(2);
+                        if (ReasoningViewProvider.currentProvider) {
+                            ReasoningViewProvider.currentProvider.showReasoning(reasoningText);
+                        }
+                        return; // Don't send to chat
+                    }
+                    
                     // Process this chunk for reasoning extraction and send to UI
                     const cleanedText = extractAndForwardReasoning(text);
                     if (cleanedText.trim()) {
@@ -147,6 +156,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             // Pass only the clean user message to the Shai command
             // The formatting context will be handled by Shai's internal prompting
             await this.controller.getStreamingSession(tabId).executeCommandWithStreaming(cleanMessage, onProgress, this.controller.getInteractionMode(tabId));
+            // Send complete message to stop thinking animation
+            webview.postMessage({ type: 'complete', data: '' });
         } catch (err: any) {
             webview.postMessage({ type: 'error', data: err?.message || String(err) });
         }
@@ -189,6 +200,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     textarea { flex:1; min-height:40px; }
     button { background: #007acc; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
     button:hover { background: #005a9e; }
+    .thinking { opacity: 0.7; }
+    .thinking::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
+    @keyframes dots {
+        0%, 20% { content: '.'; }
+        40% { content: '..'; }
+        60% { content: '...'; }
+        80%, 100% { content: ''; }
+    }
 </style>
 </head>
 <body>
@@ -206,6 +225,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const prompt = document.getElementById('prompt');
     const messages = document.getElementById('messages');
     let lastAssistantEl = null;
+    let thinkingEl = null;
 
     function appendMessage(text, cls) {
         const el = document.createElement('div');
@@ -223,7 +243,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         appendMessage(value, 'user');
         vscode.postMessage({ type: 'chat-prompt', message: value });
         prompt.value = '';
-        lastAssistantEl = appendMessage('(thinking...)', 'assistant');
+        thinkingEl = appendMessage('Thinking', 'assistant thinking');
+        lastAssistantEl = null;
     });
 
     // Handle ENTER key press in textarea
@@ -235,7 +256,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             appendMessage(value, 'user');
             vscode.postMessage({ type: 'chat-prompt', message: value });
             prompt.value = '';
-            lastAssistantEl = appendMessage('(thinking...)', 'assistant');
+            thinkingEl = appendMessage('Thinking', 'assistant thinking');
+            lastAssistantEl = null;
         }
     });
 
@@ -248,21 +270,40 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const msg = event.data;
         if (!msg) return;
         if (msg.type === 'stream') {
-            if (!lastAssistantEl) lastAssistantEl = appendMessage('', 'assistant');
-            lastAssistantEl.textContent = (lastAssistantEl.textContent === '(thinking...)' ? '' : lastAssistantEl.textContent) + msg.data;
+            if (thinkingEl) {
+                thinkingEl.classList.remove('thinking');
+                thinkingEl.textContent = msg.data;
+                lastAssistantEl = thinkingEl;
+                thinkingEl = null;
+            } else if (!lastAssistantEl) {
+                lastAssistantEl = appendMessage(msg.data, 'assistant');
+            } else {
+                lastAssistantEl.textContent += msg.data;
+            }
             messages.scrollTop = messages.scrollHeight;
         } else if (msg.type === 'complete') {
-            if (!lastAssistantEl) lastAssistantEl = appendMessage(msg.data, 'assistant');
-            else lastAssistantEl.textContent = msg.data;
+            if (thinkingEl) {
+                thinkingEl.classList.remove('thinking');
+                thinkingEl.textContent = 'Request completed!';
+                thinkingEl = null;
+            }
             lastAssistantEl = null;
         } else if (msg.type === 'error') {
-            appendMessage('Error: ' + msg.data, 'assistant');
+            if (thinkingEl) {
+                thinkingEl.classList.remove('thinking');
+                thinkingEl.textContent = 'Error: ' + msg.data;
+                thinkingEl = null;
+            } else {
+                appendMessage('Error: ' + msg.data, 'assistant');
+            }
             lastAssistantEl = null;
         } else if (msg.type === 'clear') {
             messages.innerHTML = '';
             lastAssistantEl = null;
+            thinkingEl = null;
         } else if (msg.type === 'clearStreaming') {
             lastAssistantEl = null;
+            thinkingEl = null;
         } else if (msg.type === 'restoreHistory') {
             messages.innerHTML = '';
             msg.messages.forEach(m => {
