@@ -72,7 +72,8 @@ export class ChatSession {
             if (useWSL && platform === 'win32') {
                 cwd = this.windowsToWSLPath(workspaceFolder);
                 command = 'wsl';
-                args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} "${message.replace(/"/g, '\\"')}"`];
+                // Use a more robust approach to avoid shell injection issues
+                args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} "$@"`, 'sh', '--', message];
             } else {
                 cwd = workspaceFolder;
                 command = shaiCommand;

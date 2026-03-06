@@ -57,7 +57,8 @@ export class StreamingChatSession {
       if (useWSL && platform === 'win32') {
         cwd = this.windowsToWSLPath(workspaceFolder);
         command = 'wsl';
-        args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} "${message.replace(/"/g, '\\"')}"`];
+        // Use a more robust approach to avoid shell injection issues
+        args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} "$@"`, 'sh', '--', message];
       } else {
         cwd = workspaceFolder;
         command = shaiCommand;
@@ -252,6 +253,7 @@ export class StreamingChatSession {
       let args: string[] = ['server'];
       if (useWSL && os.platform() === 'win32') {
         command = 'wsl';
+        // Use a more robust approach to avoid shell injection issues
         args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} server`];
       }
       const proc = spawn(command, args, {
