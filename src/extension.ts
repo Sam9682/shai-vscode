@@ -19,7 +19,8 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             'shai-chat-view',
-            chatViewProvider
+            chatViewProvider,
+            { webviewOptions: { retainContextWhenHidden: true } }
         ),
         vscode.window.registerWebviewViewProvider(
             'shai-reasoning-view',

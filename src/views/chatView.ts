@@ -24,6 +24,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.html = this.getHtmlContent(webviewView.webview);
 
+        webviewView.onDidChangeVisibility(() => {
+            if (webviewView.visible) {
+                this.restoreHistory(webviewView.webview);
+            }
+        });
+
         webviewView.webview.onDidReceiveMessage(async (message) => {
             try {
                 if (!this._view) return;
@@ -38,6 +44,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     }
                     case 'clear': {
                         webview.postMessage({ type: 'clear' });
+                        break;
+                    }
+                    case 'ready': {
+                        this.restoreHistory(webview);
                         break;
                     }
                 }
@@ -153,6 +163,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         webview.postMessage({ type: 'clearChat' });
     }
 
+    private restoreHistory(webview: vscode.Webview) {
+        const tabId = 'default';
+        const session = this.controller.getSession(tabId);
+        const messages = session.getMessages();
+        if (messages.length > 0) {
+            webview.postMessage({ type: 'restoreHistory', messages });
+        }
+    }
+
     private getHtmlContent(webview: vscode.Webview): string {
         return `<!DOCTYPE html>
 <html lang="en">
@@ -242,8 +261,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             lastAssistantEl = null;
         } else if (msg.type === 'clearStreaming') {
             lastAssistantEl = null;
+        } else if (msg.type === 'restoreHistory') {
+            messages.innerHTML = '';
+            msg.messages.forEach(m => {
+                appendMessage(m.message, m.type);
+            });
         }
     });
+
+    vscode.postMessage({ type: 'ready' });
 })();
 </script>
 </body>
