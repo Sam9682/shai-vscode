@@ -57,7 +57,7 @@ export class StreamingChatSession {
       if (useWSL && platform === 'win32') {
         cwd = this.windowsToWSLPath(workspaceFolder);
         command = 'wsl';
-        args = ['bash', '-c', `cd ${this.escapeShellArg(cwd)} && ${this.escapeShellArg(shaiCommand)} ${this.escapeShellArg(message)}`];
+        args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} ${StreamingChatSession.escapeShellArg(message)}`];
       } else {
         cwd = workspaceFolder;
         command = shaiCommand;
@@ -257,7 +257,7 @@ export class StreamingChatSession {
       let args: string[] = ['server'];
       if (useWSL && os.platform() === 'win32') {
         command = 'wsl';
-        args = ['bash', '-c', `cd ${this.escapeShellArg(cwd)} && ${this.escapeShellArg(shaiCommand)} server`];
+        args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} server`];
       }
       // Never use shell mode to avoid special character interpretation
       const proc = spawn(command, args, {
