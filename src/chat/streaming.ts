@@ -54,8 +54,8 @@ export class StreamingChatSession {
         env = { ...process.env };
       }
       
-      if (useWSL && platform === 'win32') {
-        cwd = this.windowsToWSLPath(workspaceFolder);
+      if (useWSL) {
+        cwd = platform === 'win32' ? this.windowsToWSLPath(workspaceFolder) : workspaceFolder;
         command = 'wsl';
         args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} ${StreamingChatSession.escapeShellArg(message)}`];
       } else {
@@ -173,6 +173,10 @@ export class StreamingChatSession {
     return "'" + arg.replace(/'/g, "'\\''" ) + "'";
   }
 
+  private static escapeShellArg(arg: string): string {
+    return "'" + arg.replace(/'/g, "'\\''" ) + "'";
+  }
+
   private generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
@@ -255,7 +259,7 @@ export class StreamingChatSession {
       }
       let command = shaiCommand;
       let args: string[] = ['server'];
-      if (useWSL && os.platform() === 'win32') {
+      if (useWSL) {
         command = 'wsl';
         args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} server`];
       }
