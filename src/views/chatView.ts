@@ -187,6 +187,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     .assistant { background: var(--vscode-editorWidget-background); }
     .controls { display:flex; gap:8px; }
     textarea { flex:1; min-height:40px; }
+    button { background: #007acc; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #005a9e; }
 </style>
 </head>
 <body>
