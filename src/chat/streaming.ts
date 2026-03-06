@@ -57,7 +57,7 @@ export class StreamingChatSession {
       if (useWSL && platform === 'win32') {
         cwd = this.windowsToWSLPath(workspaceFolder);
         command = 'wsl';
-        args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} "${message.replace(/"/g, '\\"')}"`];
+        args = ['bash', '-c', `cd ${this.escapeShellArg(cwd)} && ${this.escapeShellArg(shaiCommand)} ${this.escapeShellArg(message)}`];
       } else {
         cwd = workspaceFolder;
         command = shaiCommand;
@@ -77,9 +77,10 @@ export class StreamingChatSession {
     // --- original CLI path ------------------------------------------------
     return new Promise((resolve, reject) => {
       console.log('Spawning CLI child', command, args, 'cwd', cwd);
+      // Never use shell mode to avoid special character interpretation
       const child = spawn(command, args, { 
         cwd: useWSL ? undefined : cwd,
-        shell: !useWSL,
+        shell: false,
         env: env,
         stdio: ['pipe', 'pipe', 'pipe']
       });
@@ -168,6 +169,10 @@ export class StreamingChatSession {
     return text.replace(/\x1b\[[0-9;]*m/g, '');
   }
 
+  private escapeShellArg(arg: string): string {
+    return "'" + arg.replace(/'/g, "'\\''" ) + "'";
+  }
+
   private generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
@@ -252,11 +257,12 @@ export class StreamingChatSession {
       let args: string[] = ['server'];
       if (useWSL && os.platform() === 'win32') {
         command = 'wsl';
-        args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} server`];
+        args = ['bash', '-c', `cd ${this.escapeShellArg(cwd)} && ${this.escapeShellArg(shaiCommand)} server`];
       }
+      // Never use shell mode to avoid special character interpretation
       const proc = spawn(command, args, {
         cwd: useWSL ? undefined : cwd,
-        shell: !useWSL,
+        shell: false,
         env,
         stdio: ['ignore', 'pipe', 'pipe']
       });

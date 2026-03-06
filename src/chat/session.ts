@@ -72,16 +72,19 @@ export class ChatSession {
             if (useWSL && platform === 'win32') {
                 cwd = this.windowsToWSLPath(workspaceFolder);
                 command = 'wsl';
-                args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} "${message.replace(/"/g, '\\"')}"`];
+                // Properly escape the message for bash -c
+                const escapedMessage = message.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
+                args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} "${escapedMessage}"`];
             } else {
                 cwd = workspaceFolder;
                 command = shaiCommand;
                 args = [message];
             }
             
+            // Never use shell mode to avoid special character interpretation
             const child = spawn(command, args, { 
                 cwd: useWSL ? undefined : cwd,
-                shell: !useWSL,
+                shell: false,
                 env: env,
                 stdio: ['pipe', 'pipe', 'pipe']
             });
