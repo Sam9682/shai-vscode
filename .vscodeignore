@@ -5,3 +5,6 @@ node_modules/**
 tsconfig.json
 *.vsix
 .vscode/**
+venv/**
+*.py
+*.html
