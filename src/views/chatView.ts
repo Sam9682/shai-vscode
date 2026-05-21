@@ -402,7 +402,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         <span id="active-context" class="context-badge" title="Active Shai context"></span>
     </div>
     <div class="option-row">
-        <label class="checkbox-label"><input type="checkbox" id="no-extra-context" /> No extra context</label>
+        <label class="checkbox-label"><input type="checkbox" id="no-extra-context" checked /> No extra context</label>
     </div>
 </div>
 <script>
