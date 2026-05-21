@@ -10,30 +10,52 @@
     .message { padding: 12px; border-radius: 6px; margin-bottom: 10px; line-height: 1.5; }
     .user { background: var(--vscode-editor-selectionBackground); }
     .assistant { background: var(--vscode-editorWidget-background); }
-    .controls { display:flex; gap:8px; }
-    textarea { flex:1; min-height:40px; }
+    .controls { display:flex; flex-direction: column; gap:8px; }
+    textarea { width: 100%; min-height:40px; box-sizing: border-box; }
+    .button-row { display: flex; gap: 8px; }
     pre { background: #f4f4f4; padding: 12px; border-radius: 4px; overflow-x: auto; margin: 10px 0; }
     code { background: #f4f4f4; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
     ul { margin: 10px 0; padding-left: 20px; }
     li { margin: 5px 0; }
     h1, h2, h3 { margin-top: 16px; margin-bottom: 8px; }
+    .action-button {
+        display: inline-block;
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        padding: 6px 12px;
+        margin: 4px 4px 4px 0;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: background 0.2s;
+    }
+    .action-button:hover {
+        background: var(--vscode-button-hoverBackground);
+    }
 </style>
 </head>
 <body>
 <div class="messages" id="messages"></div>
 <div class="controls">
-    <textarea id="prompt" placeholder="Type your prompt..."></textarea>
-    <button id="send">Send</button>
-    <button id="clear">Clear</button>
+    <textarea id="prompt" placeholder="type your prompt..."></textarea>
+    <div class="button-row">
+        <button id="send">Send</button>
+        <button id="clear">Clear</button>
+        <button id="auth">Auth</button>
+    </div>
 </div>
 <script>
 (function(){
     const vscode = acquireVsCodeApi();
     const sendBtn = document.getElementById('send');
     const clearBtn = document.getElementById('clear');
+    const authBtn = document.getElementById('auth');
     const prompt = document.getElementById('prompt');
     const messages = document.getElementById('messages');
     let lastAssistantEl = null;
+    let thinkingEl = null;
+    let accumulatedText = ''; // Track raw text separately for streaming
 
     function appendMessage(text, cls) {
         const el = document.createElement('div');
@@ -47,6 +69,16 @@
     function formatMessage(text) {
         // Convert newlines to <br> and handle basic markdown
         let formatted = text.replace(/\n/g, '<br>');
+        
+        // Handle ACTION buttons: [ACTION:commandId:label]
+        formatted = formatted.replace(/\[ACTION:([^:]+):([^\]]+)\]/g, (match, commandId, label) => {
+            return `<button class="action-button" data-command="${commandId}">${label}</button>`;
+        });
+        
+        // Handle custom BUTTON actions: [BUTTON:label:data]
+        formatted = formatted.replace(/\[BUTTON:([^:]+):([^\]]+)\]/g, (match, label, data) => {
+            return `<button class="action-button" data-action="${label}" data-value="${data}">${label}</button>`;
+        });
         
         // Handle code blocks (```code```)
         formatted = formatted.replace(/`{3}([^`]+)`{3}/g, '<pre style="background: #f4f4f4; padding: 8px; border-radius: 4px; overflow-x: auto;"><code>$1</code></pre>');
@@ -79,7 +111,8 @@
             appendMessage(value, 'user');
             vscode.postMessage({ type: 'chat-prompt', message: value });
             prompt.value = '';
-            lastAssistantEl = appendMessage('(thinking...)', 'assistant');
+            thinkingEl = appendMessage('(thinking...)', 'assistant');
+            lastAssistantEl = null;
         });
     }
 
@@ -90,25 +123,76 @@
         });
     }
 
+    if (authBtn) {
+        authBtn.addEventListener('click', () => {
+            vscode.postMessage({ type: 'shai-auth' });
+        });
+    }
+
+    // Handle clicks on action buttons (event delegation)
+    messages.addEventListener('click', (event) => {
+        const target = event.target;
+        if (target.classList.contains('action-button')) {
+            if (target.dataset.command) {
+                // Execute VS Code command
+                vscode.postMessage({ type: 'executeCommand', commandId: target.dataset.command });
+            } else if (target.dataset.action) {
+                // Custom action
+                vscode.postMessage({ type: 'customAction', label: target.dataset.action, data: target.dataset.value });
+            }
+        }
+    });
+
     window.addEventListener('message', event => {
         const msg = event.data;
         if (!msg) return;
         if (msg.type === 'stream') {
-            if (!lastAssistantEl) lastAssistantEl = appendMessage('', 'assistant');
-            lastAssistantEl.innerHTML = formatMessage((lastAssistantEl.innerHTML === '(thinking...)') ? msg.data : lastAssistantEl.innerHTML + msg.data);
+            // Replace thinking indicator on first chunk, then accumulate
+            if (thinkingEl) {
+                thinkingEl.classList.remove('thinking');
+                lastAssistantEl = thinkingEl;
+                thinkingEl = null;
+                accumulatedText = '';
+            }
+            if (!lastAssistantEl) {
+                lastAssistantEl = appendMessage('', 'assistant');
+                accumulatedText = '';
+            }
+            accumulatedText += msg.data;
+            lastAssistantEl.innerHTML = formatMessage(accumulatedText);
             messages.scrollTop = messages.scrollHeight;
         } else if (msg.type === 'complete') {
-            if (!lastAssistantEl) lastAssistantEl = appendMessage(msg.data, 'assistant');
-            else lastAssistantEl.innerHTML = formatMessage(msg.data);
+            // Final answer – replace thinking indicator if still present
+            if (thinkingEl) {
+                thinkingEl.classList.remove('thinking');
+                thinkingEl.innerHTML = formatMessage(msg.data || '(no response)');
+                thinkingEl = null;
+            } else if (msg.data) {
+                if (!lastAssistantEl) {
+                    lastAssistantEl = appendMessage(msg.data, 'assistant');
+                } else {
+                    lastAssistantEl.innerHTML = formatMessage(msg.data || accumulatedText);
+                }
+            }
             lastAssistantEl = null;
+            accumulatedText = '';
         } else if (msg.type === 'error') {
-            appendMessage('Error: ' + msg.data, 'assistant');
+            if (thinkingEl) {
+                thinkingEl.classList.remove('thinking');
+                thinkingEl.innerHTML = formatMessage('Error: ' + msg.data);
+                thinkingEl = null;
+            } else {
+                appendMessage('Error: ' + msg.data, 'assistant');
+            }
             lastAssistantEl = null;
+            accumulatedText = '';
         } else if (msg.type === 'clear') {
             messages.innerHTML = '';
             lastAssistantEl = null;
+            accumulatedText = '';
         } else if (msg.type === 'clearStreaming') {
             lastAssistantEl = null;
+            accumulatedText = '';
         }
     });
 })();

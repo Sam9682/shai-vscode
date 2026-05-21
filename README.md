@@ -1,111 +1,167 @@
 # Shai VS Code Extension
 
-A VS Code extension that integrates Shai AI assistant directly into your editor with a chat interface.
+A VS Code extension that integrates the Shai AI assistant directly into your editor with a chat interface, streaming responses, internal reasoning visualization, Docker deployment management, and context-aware conversations.
 
 ## Features
 
-- **Chat Interface**: Interactive chat panel in VS Code sidebar
-- **Shell Integration**: Executes Shai AI commands directly through your system shell
-- **Workspace Aware**: Runs commands in your current workspace context
-- **Customizable**: Configure the Shai command path in settings
+- **Chat Interface**: Interactive chat panel in the VS Code sidebar with message history, markdown rendering, and actionable buttons
+- **Streaming Responses**: Real-time response streaming via CLI or a long-running HTTP/SSE server mode
+- **Internal Reasoning Panel**: Dedicated view that displays the model's thinking process as numbered steps in real time
+- **Context Management**: Named conversation contexts with system prompts, auto-summarization, and a visual context editor
+- **Docker Deployments**: Discover, deploy, and stop Docker Compose services directly from the sidebar with live log streaming
+- **Multi-Provider Auth**: Configure and switch between AI providers (Anthropic, OpenAI, Mistral, OpenRouter, Ollama, OVHcloud, OpenAI-compatible) via a built-in wizard
+- **WSL Support**: Automatic Windows ↔ WSL path conversion and command routing
 
 ## Installation
 
-1. Install the extension from the `.vsix` file:
+1. Install from the `.vsix` file:
    ```bash
-   code --install-extension shai-vscode-0.0.1.vsix
+   code --install-extension shai-vscode-0.0.3.vsix
    ```
 
 2. Or build from source:
    ```bash
    npm install
    npm run compile
+   vsce package
    ```
 
 ## Prerequisites
 
-- VS Code version 1.74.0 or higher
+- VS Code 1.74.0 or higher
 - Shai AI command-line tool installed and accessible in your PATH
+- Docker (for deployment features)
+- WSL on Windows (Shai and Docker commands are routed through WSL by default)
 
 ## Configuration
 
-Open VS Code Settings (Ctrl+,) and search for "Shai VS Code":
+Open VS Code Settings (`Ctrl+,`) and search for "Shai VS Code":
 
-- **shai-vscode.shaiCommand**: Shell command to execute Shai AI
-  - Default: `shai`
-  - Examples: `/usr/local/bin/shai`, `python /path/to/shai.py`, `./shai`
-
-- **shai-vscode.useWSL**: Run Shai command in WSL bash environment
-  - Default: `null` (auto-detect: uses WSL on Windows, native shell on Linux/Mac)
-  - Set to `true` to force WSL usage
-  - Set to `false` to force native shell usage
-
-- **shai-vscode.useServer**: When enabled the extension starts a single
-  long‑running `shai server` process and communicates with it over HTTP
-  using Server‑Sent Events (SSE).  This eliminates the artificial
-  "Analyzing…"/"Error…" stages and allows the UI to render partial
-  responses as they arrive.  Requires that your `shai` executable support
-  a `server` subcommand (or equivalent) and that the URL below matches
-  where it listens.
-- **shai-vscode.serverUrl**: URL of the local Shai HTTP/SSE server (default
-  `http://127.0.0.1:8000`).  Only used when `useServer` is `true`.
+| Setting | Default | Description |
+|---|---|---|
+| `shai-vscode.shaiCommand` | `shai` | Shell command to execute Shai AI (e.g. `/usr/local/bin/shai`, `python /path/to/shai.py`) |
+| `shai-vscode.useWSL` | `null` | Run commands in WSL. `null` = auto-detect (WSL on Windows, native elsewhere). Set `true`/`false` to override. |
+| `shai-vscode.useServer` | `false` | Start a long-running `shai server` process and communicate over HTTP/SSE instead of spawning a CLI per query. |
+| `shai-vscode.serverUrl` | `http://127.0.0.1:8000` | URL of the local Shai HTTP/SSE server (only used when `useServer` is `true`). |
 
 ## Usage
+
+### Chat
 
 1. Click the Shai icon in the Activity Bar (left sidebar)
 2. Type your question or command in the chat input
 3. Press Enter or click Send
-4. Shai AI will process your request and display the response
+4. Streaming progress appears in the Internal Reasoning panel; the final answer is displayed in the chat bubble
 
-### Example Commands
+### Context Management
 
-- `hello` - Greet Shai AI
-- `list all files in the current folder` - Execute file listing
-- Any command that your Shai AI tool supports
+Each conversation lives inside a named context. Contexts carry their own system prompt and conversation history (up to 20 turns, auto-summarized when the limit is reached).
 
-## Development
+- The active context name is shown in the status bar — click it to open the context editor
+- Use the context editor to create, switch, or delete contexts and to set a system prompt
+- Run `Shai: Open context editor` from the Command Palette
 
-### Build
+### Internal Reasoning
 
-```bash
-npm run compile
+The reasoning panel extracts `<reasoning>`, `<resolution>`, and thinking blocks from the model output and renders them as numbered steps. It clears automatically before each new request.
+
+Open it with `Shai: Show Internal Reasoning` from the Command Palette.
+
+### Docker Deployments
+
+The Deployments view in the sidebar discovers `docker-compose.yml` / `compose.yml` files at the workspace root.
+
+- **Deploy** runs `docker compose up -d --build`
+- **Stop** runs `docker compose down`
+- Live logs stream into the panel during deployment
+- A 10-minute timeout protects against runaway builds
+- Concurrent deploys to the same file are blocked
+
+### Authentication
+
+Run `Shai: Profile configuration (auth.config)` to open the auth wizard. From there you can:
+
+- Add a new provider profile (API key, model, endpoint)
+- Activate or delete existing profiles
+- Supported providers: Anthropic (Claude), OpenAI, Mistral, OpenRouter, Ollama, OVHcloud AI Endpoints, OpenAI-compatible
+
+Profiles are stored in `~/.config/shai/auth.config` with `0600` permissions.
+
+## Commands
+
+| Command | Description |
+|---|---|
+| `Shai: Open Chat` | Open the chat panel |
+| `Shai: Clear Chat` | Clear chat history for the active context |
+| `Shai: Show Internal Reasoning` | Open the reasoning panel |
+| `Shai: Profile configuration (auth.config)` | Open the auth wizard |
+| `Shai: Open context editor` | Open the context editor |
+| `Shai: Open Deployments` | Open the Docker deployments panel |
+
+## Architecture
+
 ```
-
-### Watch Mode
-
-```bash
-npm run watch
-```
-
-### Package Extension
-
-```bash
-npx vsce package
+src/
+├── extension.ts            # Entry point — registers views, controllers, commands
+├── chat/
+│   ├── controller.ts       # Manages sessions, contexts, interaction modes
+│   ├── session.ts          # Non-streaming CLI execution with history
+│   └── streaming.ts        # Streaming execution (CLI + HTTP/SSE server mode)
+├── context/
+│   ├── contextManager.ts   # Conversation turns, summaries, system prompts
+│   └── promptBuilder.ts    # Enriches user messages with context
+├── views/
+│   ├── chatView.ts         # Chat webview (message rendering, action buttons)
+│   ├── reasoningView.ts    # Internal reasoning webview
+│   ├── deploymentsView.ts  # Docker deployment UI
+│   └── contextEditorPanel.ts # Context editor UI
+├── auth/
+│   ├── authConfig.ts       # Auth config file I/O, provider definitions
+│   └── authWizardPanel.ts  # Auth wizard webview
+├── docker/
+│   ├── dockerController.ts # Docker Compose lifecycle (deploy, stop, discover)
+│   └── types.ts            # TypeScript interfaces
+└── commands/
+    └── commands.ts         # Command registrations
 ```
 
 ## Windows Support
 
-The extension automatically detects Windows and runs Shai commands through WSL bash, since Shai AI is only available for Linux/Mac. Windows paths are automatically converted to WSL format (e.g., `C:\Users\user` becomes `/mnt/c/Users/user`).
+The extension auto-detects Windows and routes Shai and Docker commands through WSL by default. Windows paths are converted automatically (e.g. `C:\Users\user` → `/mnt/c/Users/user`; WSL UNC paths like `\\wsl.localhost\Distro\home\user` → `/home/user`).
 
 **Prerequisites for Windows:**
-- WSL (Windows Subsystem for Linux) installed
-- Shai AI installed in your WSL environment
+- WSL installed and working
+- Shai AI installed inside your WSL environment
+- Docker accessible from WSL (Docker Desktop with WSL 2 backend, or Docker Engine in WSL)
+
+Set `shai-vscode.useWSL` to `false` if you want to run Docker and Shai natively on Windows.
 
 ## Troubleshooting
 
-**Error: Command not found (Windows)**
-- Ensure WSL is installed and working: `wsl --version`
-- Install Shai AI in your WSL environment, not Windows
-- Test Shai in WSL: `wsl bash -c "shai hello"`
+**Command not found (Windows)**
+- Verify WSL: `wsl --version`
+- Install Shai in WSL, not Windows
+- Test: `wsl bash -c "shai hello"`
 
-**Error: Command not found (Linux/macOS)**
-- Ensure Shai AI is installed and in your PATH
-- Configure the full path in settings: `shai-vscode.shaiCommand`
-- On macOS, if using Homebrew, Shai should be installed in `/usr/local/bin` or `/opt/homebrew/bin`
+**Command not found (Linux/macOS)**
+- Ensure Shai is in your PATH
+- Set the full path in `shai-vscode.shaiCommand`
 
-**No output from commands**
-- Check that your Shai command is working in terminal (or WSL on Windows)
-- Verify workspace folder permissions
+**Docker not found**
+- Install Docker and ensure it is on the system PATH
+- On Windows, make sure Docker Desktop's WSL integration is enabled
+
+**No output / timeout**
+- CLI commands time out after 5 minutes; Docker deployments after 10 minutes
+- Check that Shai works in your terminal first
+
+## Development
+
+```bash
+npm run compile      # Build once
+npm run watch        # Rebuild on changes
+vsce package         # Create .vsix
+```
 
 ## Repository
 
@@ -117,4 +173,4 @@ See [LICENSE](LICENSE) file for details.
 
 ## Version
 
-0.0.1 - Initial release
+0.0.3

@@ -24,9 +24,10 @@ export class StreamingChatSession {
   async executeCommandWithStreaming(
     message: string,
     onProgress: (progress: StreamingResponse) => void,
-    interactionMode: string = 'none'
+    interactionMode: string = 'none',
+    noExtraContext: boolean = false
   ): Promise<string> {
-    console.log('executeCommandWithStreaming called with message:', message, 'mode:', interactionMode);
+    console.log('executeCommandWithStreaming called with message:', message, 'mode:', interactionMode, 'noExtraContext:', noExtraContext);
     const config = vscode.workspace.getConfiguration('shai-vscode');
     const shaiCommand = config.get<string>('shaiCommand') || 'shai';
     const useServer = config.get<boolean>('useServer') || false;
@@ -37,6 +38,15 @@ export class StreamingChatSession {
         ? useWSLConfig
         : platform === 'win32';
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
+    
+    // Add context to format response with actionable buttons (unless user opted out)
+    const contextualMessage = noExtraContext ? message : `${message}
+
+IMPORTANT: When suggesting VS Code actions or commands, format them using this syntax:
+[ACTION:commandId:label] - for VS Code commands (e.g., [ACTION:workbench.action.files.save:Save File])
+[BUTTON:label:data] - for custom actions (e.g., [BUTTON:Create File:path/to/file.ts])
+
+This will be converted into clickable buttons in the UI.`;
 
     let command: string;
     let args: string[];
@@ -57,11 +67,11 @@ export class StreamingChatSession {
       if (useWSL) {
         cwd = platform === 'win32' ? this.windowsToWSLPath(workspaceFolder) : workspaceFolder;
         command = 'wsl';
-        args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} ${StreamingChatSession.escapeShellArg(message)}`];
+        args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} ${StreamingChatSession.escapeShellArg(contextualMessage)}`];
       } else {
         cwd = workspaceFolder;
         command = shaiCommand;
-        args = [message];
+        args = [contextualMessage];
       }
     // if the user has opted into server mode we bypass the shell call and
     // instead talk to the HTTP/SSE endpoint.  this keeps a single process
@@ -71,7 +81,7 @@ export class StreamingChatSession {
       // spawn the server once and wait briefly for it to bind
       await StreamingChatSession.ensureServerRunning(shaiCommand, useWSL, cwd, env);
       // perform the POST and stream response events
-      return this.callServer(message, serverUrl, onProgress, interactionMode);
+      return this.callServer(contextualMessage, serverUrl, onProgress, interactionMode);
     }
 
     // --- original CLI path ------------------------------------------------
@@ -131,7 +141,10 @@ export class StreamingChatSession {
 
       child.on('close', () => {
         clearTimeout(timeout);
-        const output = stderr || stdout || 'No output';
+        // Use stdout for the final chat answer; stderr (which typically
+        // contains thinking / model-info) was already streamed to the
+        // reasoning panel.  Fall back to stderr only when stdout is empty.
+        const output = stdout || stderr || 'No output';
         const cleanOutput = this.stripAnsi(output);
         onProgress({
           id: this.generateId(),
@@ -228,9 +241,14 @@ export class StreamingChatSession {
               }
         }
       }
-      // we do not emit a final event here; the caller already accumulates
-      // the chunks and will be notified when the promise resolves.  emitting
-      // a `complete` event would cause the UI to duplicate the result.
+      // Emit a complete event with the full accumulated text so the caller
+      // can send the final answer to the chat panel.
+      onProgress({
+        id: this.generateId(),
+        type: 'complete',
+        data: stdout,
+        timestamp: Date.now()
+      });
       return stdout;
     } catch (err: any) {
       const msg = err.message || String(err);

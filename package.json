@@ -2,7 +2,7 @@
   "name": "shai-vscode",
   "displayName": "Shai VS Code",
   "description": "Integrates Shai AI assistant directly into VS Code with shell command execution",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "readme": "README.md",
   "publisher": "shai-dev",
   "icon": "shai_icon_vscode.png",
@@ -22,7 +22,10 @@
     "onView:shai-chat-view",
     "onView:shai-reasoning-view",
     "onCommand:shai-vscode.openChat",
-    "onCommand:shai-vscode.showReasoning"
+    "onCommand:shai-vscode.showReasoning",
+    "onCommand:shai-vscode.auth",
+    "onView:shai-deployments-view",
+    "onCommand:shai-vscode.openContextEditor"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -40,11 +43,17 @@
         {
           "id": "shai-reasoning-view",
           "name": "Internal Reasoning",
-          "type": "webview"
+          "type": "webview",
+          "visibility": "collapsed"
         },
         {
           "id": "shai-chat-view",
           "name": "Chat",
+          "type": "webview"
+        },
+        {
+          "id": "shai-deployments-view",
+          "name": "Deployments",
           "type": "webview"
         }
       ]
@@ -61,8 +70,46 @@
       {
         "command": "shai-vscode.clearChat",
         "title": "Shai: Clear Chat"
+      },
+      {
+        "command": "shai-vscode.auth",
+        "title": "Shai: Profile configuration (auth.config)",
+        "icon": "$(key)"
+      },
+      {
+        "command": "shai-vscode.openDeployments",
+        "title": "Shai: Open Deployments"
+      },
+      {
+        "command": "shai-vscode.openContextEditor",
+        "title": "Shai: Open context editor",
+        "icon": "$(book)"
+      },
+      {
+        "command": "shai-vscode.newChat",
+        "title": "Shai: New Chat",
+        "icon": "$(add)"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "shai-vscode.auth",
+          "when": "view == shai-chat-view",
+          "group": "navigation@1"
+        },
+        {
+          "command": "shai-vscode.openContextEditor",
+          "when": "view == shai-chat-view",
+          "group": "navigation@2"
+        },
+        {
+          "command": "shai-vscode.newChat",
+          "when": "view == shai-chat-view",
+          "group": "navigation@3"
+        }
+      ]
+    },
     "configuration": {
       "title": "Shai VS Code",
       "properties": {
@@ -75,8 +122,7 @@
           "type": "boolean",
           "default": null,
           "description": "Run Shai command in WSL bash environment. When null (default), automatically uses WSL on Windows and native shell on other platforms. Set to true/false to override."
-        }
-        ,
+        },
         "shai-vscode.useServer": {
           "type": "boolean",
           "default": false,
@@ -91,16 +137,17 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "compile": "npx tsc -p ./",
+    "watch": "npx tsc -watch -p ./",
+    "package": "vsce package",
+    "deploy": "npm run compile && vsce package && cursor --install-extension shai-vscode-0.0.4.vsix"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",
     "@types/vscode": "^1.74.0",
     "@vscode/vsce": "^2.15.0",
     "cheerio": "^1.0.0-rc.10",
-    "typescript": "^5.0.0",
+    "typescript": "^5.9.3",
     "vscode-uri": "^3.1.0"
   },
   "overrides": {
