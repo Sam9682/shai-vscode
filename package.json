@@ -2,7 +2,7 @@
   "name": "shai-vscode",
   "displayName": "Shai VS Code",
   "description": "Integrates Shai AI assistant directly into VS Code with shell command execution",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "readme": "README.md",
   "publisher": "shai-dev",
   "icon": "shai_icon_vscode.png",
@@ -140,7 +140,7 @@
     "compile": "npx tsc -p ./",
     "watch": "npx tsc -watch -p ./",
     "package": "vsce package",
-    "deploy": "npm run compile && vsce package && cursor --install-extension shai-vscode-0.0.4.vsix"
+    "deploy": "npm run compile && vsce package && cursor --install-extension shai-vscode-0.0.5.vsix"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",

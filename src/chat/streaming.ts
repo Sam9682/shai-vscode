@@ -25,9 +25,10 @@ export class StreamingChatSession {
     message: string,
     onProgress: (progress: StreamingResponse) => void,
     interactionMode: string = 'none',
-    noExtraContext: boolean = false
+    noExtraContext: boolean = false,
+    autopilot: boolean = false
   ): Promise<string> {
-    console.log('executeCommandWithStreaming called with message:', message, 'mode:', interactionMode, 'noExtraContext:', noExtraContext);
+    console.log('executeCommandWithStreaming called with message:', message, 'mode:', interactionMode, 'noExtraContext:', noExtraContext, 'autopilot:', autopilot);
     const config = vscode.workspace.getConfiguration('shai-vscode');
     const shaiCommand = config.get<string>('shaiCommand') || 'shai';
     const useServer = config.get<boolean>('useServer') || false;
@@ -62,6 +63,11 @@ This will be converted into clickable buttons in the UI.`;
         };
       } else {
         env = { ...process.env };
+      }
+
+      // Communicate autopilot mode via environment variable
+      if (autopilot) {
+        env.SHAI_AUTOPILOT = '1';
       }
       
       if (useWSL) {

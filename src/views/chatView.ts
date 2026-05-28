@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { ChatController } from '../chat/controller';
 import { ReasoningViewProvider } from './reasoningView';
 import { buildPrompt } from '../context/promptBuilder';
-import { PREDEFINED_CONTEXTS } from '../context/contextManager';
+import { PREDEFINED_CONTEXTS, ContextManager } from '../context/contextManager';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'shai.chatView';
@@ -17,22 +17,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         } else {
             this.controller = new ChatController(contextOrController as vscode.ExtensionContext);
         }
-        this._displayedContextId = this.controller.getActiveContextId();
+        const activeId = this.controller.getActiveContextId();
+        const isValid = PREDEFINED_CONTEXTS.some(c => c.id === activeId);
+        this._displayedContextId = isValid ? activeId : 'default';
+        if (!isValid) {
+            this.controller.setActiveContextId('default');
+        }
     }
 
-    /** Start a brand-new chat session (called from the title-bar + icon command). */
+    /** Start a brand-new chat tab in the sidebar CHAT panel. */
     public newChat(): void {
-        const tabId = this._displayedContextId;
-        try {
-            const session = this.controller.getSession(tabId);
-            session.clear();
-            this.controller.getContextManager(tabId).clear();
-            this.controller.deleteSession(tabId);
-        } catch (err) {
-            console.error('Error starting new chat', err);
-        }
         if (this._view) {
-            this._view.webview.postMessage({ type: 'clear' });
+            this._view.webview.postMessage({ type: 'addTab' });
         }
     }
 
@@ -69,16 +65,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     case 'chat-prompt': {
                         const text: string = message.message || '';
                         if (!text.trim()) return;
+                        const tabId = message.tabId || this._displayedContextId;
                         webview.postMessage({ type: 'clearStreaming' });
-                        this.handleChatPrompt(text, webview, message.noExtraContext || false);
+                        this.handleChatPromptForTab(text, webview, tabId, message.noExtraContext || false, message.autopilot || false);
                         break;
                     }
                     case 'clear': {
-                        this.handleClear(webview);
+                        const tabId = message.tabId || this._displayedContextId;
+                        this.handleClearForTab(webview, tabId);
+                        break;
+                    }
+                    case 'switchTab': {
+                        const tabId = message.tabId;
+                        if (tabId) {
+                            const session = this.controller.getSession(tabId);
+                            const messages = session.getMessages();
+                            if (messages.length > 0) {
+                                webview.postMessage({ type: 'restoreHistory', messages, tabId });
+                            }
+                        }
                         break;
                     }
                     case 'ready': {
-                        this.restoreHistory(webview);
                         this.sendActiveContext(webview);
                         this.sendContextList(webview);
                         break;
@@ -92,7 +100,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                         if (newId) {
                             this.controller.setActiveContextId(newId);
                             this._displayedContextId = newId;
-                            this.restoreHistory(webview);
                         }
                         break;
                     }
@@ -132,7 +139,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         panel.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
                 case 'chat-prompt':
-                    await provider.handleChatPrompt(data.message, panel.webview, data.noExtraContext || false);
+                    await provider.handleChatPrompt(data.message, panel.webview, data.noExtraContext || false, data.autopilot || false);
                     break;
                 case 'clear':
                     provider.handleClear(panel.webview);
@@ -166,7 +173,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return panel;
     }
 
-    private async handleChatPrompt(message: string, webview: vscode.Webview, noExtraContext: boolean = false) {
+    private async handleChatPrompt(message: string, webview: vscode.Webview, noExtraContext: boolean = false, autopilot: boolean = false) {
         const tabId = this._displayedContextId;
         const cleanMessage = message;
 
@@ -262,7 +269,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 ReasoningViewProvider.currentProvider.clearReasoning();
             }
             // Pass the context-enriched prompt to shai
-            await this.controller.getStreamingSession(tabId).executeCommandWithStreaming(enrichedMessage, onProgress, this.controller.getInteractionMode(tabId), noExtraContext);
+            await this.controller.getStreamingSession(tabId).executeCommandWithStreaming(enrichedMessage, onProgress, this.controller.getInteractionMode(tabId), noExtraContext, autopilot);
             // The 'complete' callback above already sent the final answer to
             // the chat panel, so nothing else to do here.
         } catch (err: any) {
@@ -292,13 +299,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private sendActiveContext(webview: vscode.Webview) {
-        const id = this.controller.getActiveContextId();
-        this._displayedContextId = id;
+        let id = this.controller.getActiveContextId();
+        // Ensure the active context is always a predefined one
         const preset = PREDEFINED_CONTEXTS.find(c => c.id === id);
+        if (!preset) {
+            id = 'default';
+            this.controller.setActiveContextId(id);
+        }
+        this._displayedContextId = id;
+        const ctx = PREDEFINED_CONTEXTS.find(c => c.id === id)!;
         webview.postMessage({
             type: 'activeContext',
             id,
-            label: preset ? preset.label : id,
+            label: ctx.label,
         });
     }
 
@@ -311,6 +324,112 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
+    // ------------------------------------------------------------------
+    // Tab-specific helpers (used by standalone panels with their own tabId)
+    // ------------------------------------------------------------------
+
+    private async handleChatPromptForTab(message: string, webview: vscode.Webview, tabId: string, noExtraContext: boolean = false, autopilot: boolean = false) {
+        const cleanMessage = message;
+        const contextManager = this.controller.getContextManager(tabId);
+        const enrichedMessage = noExtraContext
+            ? cleanMessage
+            : buildPrompt(
+                contextManager.getSummary(),
+                contextManager.getRecentTurns(),
+                cleanMessage,
+                contextManager.getSystemPrompt()
+            );
+
+        const extractAndForwardReasoning = (text: string): string => {
+            const reasoningRegex = /<reasoning>([\s\S]*?)<\/reasoning>/g;
+            let match: RegExpExecArray | null;
+            let cleaned = text;
+            while ((match = reasoningRegex.exec(text)) !== null) {
+                if (ReasoningViewProvider.currentProvider) {
+                    ReasoningViewProvider.currentProvider.showReasoning(match[1]);
+                }
+                cleaned = cleaned.replace(match[0], '');
+            }
+            const resolutionRegex = /<resolution>([\s\S]*?)<\/resolution>/g;
+            let resMatch: RegExpExecArray | null;
+            while ((resMatch = resolutionRegex.exec(text)) !== null) {
+                if (ReasoningViewProvider.currentProvider) {
+                    ReasoningViewProvider.currentProvider.showResolution(resMatch[1]);
+                }
+                cleaned = cleaned.replace(resMatch[0], '');
+            }
+            const thinkingRegex = /░[^●]*●/g;
+            let thinkMatch: RegExpExecArray | null;
+            while ((thinkMatch = thinkingRegex.exec(text)) !== null) {
+                if (ReasoningViewProvider.currentProvider) {
+                    ReasoningViewProvider.currentProvider.showReasoning(thinkMatch[0]);
+                }
+                cleaned = cleaned.replace(thinkMatch[0], '');
+            }
+            const internalMessageRegex = /░\s*[A-Za-z0-9\-_]+\s*[A-Za-z0-9\-_]+\s*on\s+[A-Za-z0-9\-_]+/g;
+            let internalMatch: RegExpExecArray | null;
+            while ((internalMatch = internalMessageRegex.exec(text)) !== null) {
+                if (ReasoningViewProvider.currentProvider) {
+                    ReasoningViewProvider.currentProvider.showReasoning(internalMatch[0]);
+                }
+                cleaned = cleaned.replace(internalMatch[0], '');
+            }
+            return cleaned;
+        };
+
+        const onProgress = (progress: any) => {
+            try {
+                let text: string = progress.data || '';
+                if (progress.type === 'progress') {
+                    if (ReasoningViewProvider.currentProvider) {
+                        ReasoningViewProvider.currentProvider.appendReasoning(text);
+                    }
+                } else if (progress.type === 'complete') {
+                    const cleanedAnswer = extractAndForwardReasoning(text);
+                    const finalAnswer = cleanedAnswer.trim();
+                    contextManager.addTurn('user', cleanMessage);
+                    contextManager.addTurn('assistant', finalAnswer);
+                    webview.postMessage({ type: 'complete', data: finalAnswer });
+                } else if (progress.type === 'error') {
+                    if (ReasoningViewProvider.currentProvider) {
+                        ReasoningViewProvider.currentProvider.appendReasoning(text);
+                    }
+                }
+            } catch (err) {
+                console.error('Error in onProgress handler', err);
+            }
+        };
+
+        try {
+            if (ReasoningViewProvider.currentProvider) {
+                ReasoningViewProvider.currentProvider.clearReasoning();
+            }
+            await this.controller.getStreamingSession(tabId).executeCommandWithStreaming(enrichedMessage, onProgress, this.controller.getInteractionMode(tabId), noExtraContext, autopilot);
+        } catch (err: any) {
+            webview.postMessage({ type: 'error', data: err?.message || String(err) });
+        }
+    }
+
+    private handleClearForTab(webview: vscode.Webview, tabId: string) {
+        try {
+            const session = this.controller.getSession(tabId);
+            session.clear();
+            this.controller.getContextManager(tabId).clear();
+        } catch (err) {
+            console.error('Error clearing session', err);
+        }
+        webview.postMessage({ type: 'clearChat' });
+    }
+
+    private sendActiveContextForTab(webview: vscode.Webview, tabId: string) {
+        const preset = PREDEFINED_CONTEXTS.find(c => c.id === tabId);
+        webview.postMessage({
+            type: 'activeContext',
+            id: tabId,
+            label: preset ? preset.label : tabId,
+        });
+    }
+
     private getHtmlContent(webview: vscode.Webview): string {
         return `<!DOCTYPE html>
 <html lang="en">
@@ -319,77 +438,39 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Shai Chat</title>
 <style>
-    body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: transparent; margin: 8px; }
-    .messages { max-height: 60vh; overflow: auto; margin-bottom: 8px; }
+    body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: transparent; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+    .tab-bar { display: flex; background: var(--vscode-editorGroupHeader-tabsBackground, #252526); border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder, #444); overflow-x: auto; flex-shrink: 0; }
+    .tab { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; font-size: 12px; cursor: pointer; background: transparent; color: var(--vscode-tab-inactiveForeground, #999); border: none; border-bottom: 2px solid transparent; white-space: nowrap; }
+    .tab:hover { background: var(--vscode-tab-hoverBackground, #2a2d2e); }
+    .tab.active { color: var(--vscode-tab-activeForeground, #fff); border-bottom-color: var(--vscode-tab-activeBorderTop, #007acc); background: var(--vscode-tab-activeBackground, #1e1e1e); }
+    .tab .close-tab { font-size: 14px; margin-left: 4px; opacity: 0.4; cursor: pointer; }
+    .tab .close-tab:hover { opacity: 1; }
+    .chat-body { flex: 1; display: flex; flex-direction: column; padding: 8px; overflow: hidden; }
+    .messages { flex: 1; overflow: auto; margin-bottom: 8px; }
     .message { padding: 8px; border-radius: 6px; margin-bottom: 6px; white-space: pre-wrap; word-wrap: break-word; }
     .user { background: var(--vscode-editor-selectionBackground); }
     .assistant { background: var(--vscode-editorWidget-background); }
     .controls { display:flex; flex-direction: column; gap:8px; }
     button.secondary { background: var(--vscode-button-secondaryBackground, #3c3c3c); color: var(--vscode-button-secondaryForeground, #fff); }
     button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground, #454545); }
-    textarea { width: 100%; min-height:40px; box-sizing: border-box; }
+    textarea { width: 100%; min-height: 5lh; max-height: 40vh; box-sizing: border-box; resize: vertical; padding: 8px; font-family: inherit; font-size: inherit; }
     .button-row { display: flex; gap: 8px; }
     button { background: #007acc; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; min-width: 100px; }
     button:hover { background: #005a9e; }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
     button:disabled:hover { background: #007acc; }
-    .action-button {
-        display: inline-block;
-        background: var(--vscode-button-background);
-        color: var(--vscode-button-foreground);
-        padding: 6px 12px;
-        margin: 4px 4px 4px 0;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 13px;
-        transition: background 0.2s;
-    }
-    .action-button:hover {
-        background: var(--vscode-button-hoverBackground);
-    }
-    .context-badge {
-        display: inline-flex;
-        align-items: center;
-        margin-left: auto;
-        padding: 4px 10px;
-        font-size: 12px;
-        border-radius: 4px;
-        background: var(--vscode-badge-background, #4d4d4d);
-        color: var(--vscode-badge-foreground, #fff);
-        white-space: nowrap;
-        user-select: none;
-    }
-    .context-selector {
-        margin-left: auto;
-        padding: 4px 8px;
-        font-size: 12px;
-        border-radius: 4px;
-        background: var(--vscode-dropdown-background, #3c3c3c);
-        color: var(--vscode-dropdown-foreground, #fff);
-        border: 1px solid var(--vscode-dropdown-border, #555);
-        cursor: pointer;
-        outline: none;
-    }
-    .context-selector:focus {
-        border-color: var(--vscode-focusBorder, #007acc);
-    }
-    .option-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 12px;
-    }
-    .checkbox-label {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        cursor: pointer;
-        user-select: none;
-    }
+    .action-button { display: inline-block; background: var(--vscode-button-background); color: var(--vscode-button-foreground); padding: 6px 12px; margin: 4px 4px 4px 0; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .action-button:hover { background: var(--vscode-button-hoverBackground); }
+    .context-badge { display: inline-flex; align-items: center; margin-left: auto; padding: 4px 10px; font-size: 12px; border-radius: 4px; background: var(--vscode-badge-background, #4d4d4d); color: var(--vscode-badge-foreground, #fff); white-space: nowrap; }
+    .context-selector { margin-left: auto; padding: 4px 8px; font-size: 12px; border-radius: 4px; background: var(--vscode-dropdown-background, #3c3c3c); color: var(--vscode-dropdown-foreground, #fff); border: 1px solid var(--vscode-dropdown-border, #555); cursor: pointer; }
+    .context-selector:focus { border-color: var(--vscode-focusBorder, #007acc); }
+    .option-row { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+    .checkbox-label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
 </style>
 </head>
 <body>
+<div class="tab-bar" id="tab-bar"></div>
+<div class="chat-body">
 <div class="messages" id="messages"></div>
 <div class="controls">
     <textarea id="prompt" placeholder="type your prompt..."></textarea>
@@ -403,20 +484,81 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     </div>
     <div class="option-row">
         <label class="checkbox-label"><input type="checkbox" id="no-extra-context" checked /> No extra context</label>
+        <label class="checkbox-label"><input type="checkbox" id="autopilot" checked /> Autopilot</label>
     </div>
+</div>
 </div>
 <script>
 (function(){
     const vscode = acquireVsCodeApi();
+    const tabBar = document.getElementById('tab-bar');
     const sendBtn = document.getElementById('send');
     const clearBtn = document.getElementById('clear');
     const contextBadge = document.getElementById('active-context');
     const contextSelector = document.getElementById('context-selector');
     const noExtraContextCb = document.getElementById('no-extra-context');
+    const autopilotCb = document.getElementById('autopilot');
     const prompt = document.getElementById('prompt');
     const messages = document.getElementById('messages');
     let lastAssistantEl = null;
     let accumulatedText = ''; // Track raw text separately for streaming
+
+    // --- Tab management ---
+    let tabs = [];
+    let activeTabId = null;
+    let tabCounter = 0;
+
+    function addTab() {
+        tabCounter++;
+        const id = 'tab-' + Date.now() + '-' + tabCounter;
+        tabs.push({ id: id, label: 'Chat ' + tabCounter, html: '' });
+        activateTab(id);
+    }
+
+    function activateTab(id) {
+        if (activeTabId) {
+            const cur = tabs.find(t => t.id === activeTabId);
+            if (cur) cur.html = messages.innerHTML;
+        }
+        activeTabId = id;
+        const tab = tabs.find(t => t.id === id);
+        messages.innerHTML = tab ? tab.html : '';
+        lastAssistantEl = null;
+        accumulatedText = '';
+        renderTabs();
+    }
+
+    function closeTab(id) {
+        if (tabs.length <= 1) return;
+        const idx = tabs.findIndex(t => t.id === id);
+        if (idx === -1) return;
+        tabs.splice(idx, 1);
+        if (activeTabId === id) {
+            activateTab(tabs[Math.min(idx, tabs.length - 1)].id);
+        } else { renderTabs(); }
+    }
+
+    function renderTabs() {
+        tabBar.innerHTML = '';
+        tabs.forEach(tab => {
+            const el = document.createElement('div');
+            el.className = 'tab' + (tab.id === activeTabId ? ' active' : '');
+            const lbl = document.createElement('span');
+            lbl.textContent = tab.label;
+            el.appendChild(lbl);
+            if (tabs.length > 1) {
+                const x = document.createElement('span');
+                x.className = 'close-tab';
+                x.textContent = '\\u00d7';
+                x.addEventListener('click', e => { e.stopPropagation(); closeTab(tab.id); });
+                el.appendChild(x);
+            }
+            el.addEventListener('click', () => activateTab(tab.id));
+            tabBar.appendChild(el);
+        });
+    }
+
+    addTab(); // Start with one tab
 
     function appendMessage(text, cls) {
         const el = document.createElement('div');
@@ -487,7 +629,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const value = (prompt.value || '').trim();
         if (!value) return;
         appendMessage(value, 'user');
-        vscode.postMessage({ type: 'chat-prompt', message: value, noExtraContext: noExtraContextCb?.checked || false });
+        vscode.postMessage({ type: 'chat-prompt', message: value, tabId: activeTabId, noExtraContext: noExtraContextCb?.checked || false, autopilot: autopilotCb?.checked || false });
         prompt.value = '';
         setProcessing(true);
         lastAssistantEl = null;
@@ -502,7 +644,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const value = (prompt.value || '').trim();
             if (!value) return;
             appendMessage(value, 'user');
-            vscode.postMessage({ type: 'chat-prompt', message: value, noExtraContext: noExtraContextCb?.checked || false });
+            vscode.postMessage({ type: 'chat-prompt', message: value, tabId: activeTabId, noExtraContext: noExtraContextCb?.checked || false, autopilot: autopilotCb?.checked || false });
             prompt.value = '';
             setProcessing(true);
             lastAssistantEl = null;
@@ -513,7 +655,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     clearBtn?.addEventListener('click', () => {
         messages.innerHTML = '';
-        vscode.postMessage({ type: 'clear' });
+        lastAssistantEl = null;
+        accumulatedText = '';
+        const tab = tabs.find(t => t.id === activeTabId);
+        if (tab) tab.html = '';
+        vscode.postMessage({ type: 'clear', tabId: activeTabId });
     });
 
     // Handle context selector change
@@ -600,6 +746,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     contextSelector.value = msg.activeId;
                 }
             }
+        } else if (msg.type === 'addTab') {
+            addTab();
         }
     });
 
