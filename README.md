@@ -16,7 +16,7 @@ A VS Code extension that integrates the Shai AI assistant directly into your edi
 
 1. Install from the `.vsix` file:
    ```bash
-   code --install-extension shai-vscode-0.0.5.vsix
+   code --install-extension shai-vscode-0.0.6.vsix
    ```
 
 2. Or build from source:
@@ -173,4 +173,4 @@ See [LICENSE](LICENSE) file for details.
 
 ## Version
 
-0.0.5
+0.0.6
