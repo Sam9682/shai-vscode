@@ -112,8 +112,12 @@ export class ReasoningViewProvider implements vscode.WebviewViewProvider {
                     el.innerHTML = '';
                 }
                 el.innerHTML += '<div class="step">' + data.chunk + '</div>';
+                // Auto-scroll to bottom when new content is added
+                el.parentElement.scrollTop = el.parentElement.scrollHeight;
             } else if (data.type === 'showResolution') {
                 el.innerHTML = '<div class="step resolution-step">' + data.resolution + '</div>';
+                // Auto-scroll to bottom when new content is added
+                el.parentElement.scrollTop = el.parentElement.scrollHeight;
             } else if (data.type === 'clearReasoning') {
                 el.innerHTML = '(no reasoning yet)';
             }

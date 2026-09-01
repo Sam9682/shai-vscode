@@ -1,0 +1,515 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Extend `EnvField` type and populate metadata": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921867960
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921879584
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922420833
+      }
+    ],
+    "1.4 Add `MODEL_HELP` map and `getModelHelp` accessor": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868076
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922455593
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922806669
+      }
+    ],
+    "1.6 Sharpen required-field validation messages": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868158
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922832042
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922942730
+      }
+    ],
+    "2.1 Implement `describeStreamingError`": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868241
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921880972
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922422279
+      }
+    ],
+    "2.3 Wire the formatter into the streaming session": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868324
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922833429
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922941358
+      }
+    ],
+    "3.1 Implement `nextStreamState` and `sendEnabled` reducers": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868426
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921882429
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922423234
+      }
+    ],
+    "4.1 Render example as placeholder and help with `aria-describedby`": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868512
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922834394
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922944142
+      }
+    ],
+    "4.2 Render per-provider model help": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868589
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922968999
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923125597
+      }
+    ],
+    "4.3 Add expandable credential help and retain values on error": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868674
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923135688
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923230120
+      }
+    ],
+    "5. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868752
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787924108835
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787924337041
+      }
+    ],
+    "6.1 Add `sanitizeContextId`": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868831
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921883326
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922424554
+      }
+    ],
+    "7.1 Pass predefined templates to the webview and use `sanitizeContextId`": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868908
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922835792
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922945526
+      }
+    ],
+    "7.2 Add naming help, sanitize preview notice, and template selector": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921868998
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922970344
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923127011
+      }
+    ],
+    "7.3 Add system-prompt purpose help and active-context distinction": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921869083
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923136900
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923231083
+      }
+    ],
+    "7.4 Keep duplicate-name handling with value retention": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921869189
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923232849
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923313792
+      }
+    ],
+    "8.1 Keep Context_Badge and Context_Selector in sync": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921869282
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923328507
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923692051
+      }
+    ],
+    "8.2 Add the Streaming_Status_Indicator and send-control wiring": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921869369
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923693100
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923980394
+      }
+    ],
+    "9. Final checkpoint - Build and test verification": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787921869444
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787924109959
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787924338277
+      }
+    ],
+    "3. Add the pure streaming state machine for the Chat_View": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922423318
+      }
+    ],
+    "6. Export the context sanitizer in `contextManager.ts`": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922424661
+      }
+    ],
+    "1.2 Write property test for provider help metadata": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922441250
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922460614
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922810833
+      }
+    ],
+    "1.3 Write property test for API-key/base-URL examples": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922442213
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922837135
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922946780
+      }
+    ],
+    "2.2 Write property/unit tests for `describeStreamingError`": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922443622
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922457006
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922807989
+      }
+    ],
+    "3.2 Write property test for the state machine": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922445374
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922458443
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922809428
+      }
+    ],
+    "6.2 Write property test for sanitization": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922446082
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922459342
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922811842
+      }
+    ],
+    "2. Add the pure streaming-error formatter in `streaming.ts`": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922941449
+      }
+    ],
+    "1. Extend provider metadata and pure helpers in `authConfig.ts`": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922942827
+      }
+    ],
+    "1.5 Write property test and unit test for model help": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922963865
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922966209
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923128438
+      }
+    ],
+    "1.7 Write property tests for validation messages": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922965260
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787922967609
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923129362
+      }
+    ],
+    "4. Enrich the Auth_Wizard webview in `authWizardPanel.ts`": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923230213
+      }
+    ],
+    "7. Enrich the Context_Editor (`contextEditorPanel.ts` + `media/contextEditor.js`)": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923313898
+      }
+    ],
+    "4.4 Write property/unit tests for wizard rendering (mirror, not import)": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923325991
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923608249
+      }
+    ],
+    "7.5 Write property/unit tests for the context editor (mirror, not import)": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923327292
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923609246
+      }
+    ],
+    "8. Wire Chat_View context indicators and streaming status": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923980507
+      }
+    ],
+    "8.3 Write property test for chat indicators (mirror, not import)": [
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787923981701
+      },
+      {
+        "executionId": "28fde473-e70b-453e-afb4-0d1abc8bd7e6",
+        "chatSessionId": "sess_56fa228d-1b0d-4e65-98d7-ab3d05378ba6",
+        "timestamp": 1787924107487
+      }
+    ]
+  }
+}

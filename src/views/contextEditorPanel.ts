@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ContextManager, PREDEFINED_CONTEXT_IDS } from '../context/contextManager';
+import { ContextManager, PREDEFINED_CONTEXT_IDS, PREDEFINED_CONTEXTS, sanitizeContextId } from '../context/contextManager';
 import { ChatController } from '../chat/controller';
 import { buildPrompt } from '../context/promptBuilder';
 
@@ -72,11 +72,18 @@ class ContextEditorPanel {
         const manager = this.controller.getContextManager(active);
         const state   = manager.getState();
 
+        const templates = PREDEFINED_CONTEXTS.map(c => ({
+            id: c.id,
+            label: c.label,
+            systemPrompt: c.systemPrompt,
+        }));
+
         this.panel.webview.postMessage({
             type: 'init',
             contextIds: ids,
             activeId: active,
             predefinedIds: PREDEFINED_CONTEXT_IDS,
+            templates,
             state,
         });
     }
@@ -103,7 +110,7 @@ class ContextEditorPanel {
             case 'newContext': {
                 const rawId = (message.id as string ?? '').trim();
                 if (!rawId) { break; }
-                const safe = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+                const safe = sanitizeContextId(rawId);
                 const mgr = this.controller.getContextManager(safe);
                 if (message.systemPrompt) {
                     mgr.setSystemPrompt(message.systemPrompt as string);
@@ -240,7 +247,8 @@ function getContextEditorHtml(nonce: string, cspSource: string, scriptUri: strin
 
   <fieldset>
     <legend>System prompt</legend>
-    <textarea id="systemPrompt" rows="4" placeholder="Instructions always injected at the top of every prompt..."></textarea>
+    <p class="hint" id="systemPromptHint">The system prompt is injected at the top of every request for this context, guiding how the AI responds.</p>
+    <textarea id="systemPrompt" rows="4" placeholder="Instructions always injected at the top of every prompt..." aria-describedby="systemPromptHint"></textarea>
     <div class="row-end">
       <button type="button" id="btnSaveSystem">Save</button>
     </div>
@@ -254,8 +262,14 @@ function getContextEditorHtml(nonce: string, cspSource: string, scriptUri: strin
     <legend>New context</legend>
     <div class="row">
       <label for="newCtxId">Name</label>
-      <input type="text" id="newCtxId" placeholder="mon-contexte" autocomplete="off" />
-      <div class="err hidden" id="newCtxError">Ce nom existe d&eacute;j&agrave;.</div>
+      <input type="text" id="newCtxId" placeholder="mon-contexte" autocomplete="off" aria-describedby="newCtxIdHint" />
+      <div class="hint" id="newCtxIdHint">Use only letters, digits, hyphens, and underscores. Other characters are replaced with underscores.</div>
+      <div class="hint hidden" id="newCtxSanitizeNotice"></div>
+      <div class="err hidden" id="newCtxError">This name already exists.</div>
+    </div>
+    <div class="row">
+      <label for="newCtxTemplate">Template</label>
+      <select id="newCtxTemplate"></select>
     </div>
     <div class="row">
       <label for="newCtxSystem">System prompt (optionnel)</label>

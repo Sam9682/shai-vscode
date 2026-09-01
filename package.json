@@ -139,14 +139,21 @@
   "scripts": {
     "compile": "npx tsc -p ./",
     "watch": "npx tsc -watch -p ./",
+    "test": "mocha --config .mocharc.json --node-option=no-warnings=MODULE_TYPELESS_PACKAGE_JSON",
     "package": "vsce package",
     "deploy": "npm run compile && vsce package && cursor --install-extension shai-vscode-0.0.5.vsix"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.6",
     "@types/node": "^18.0.0",
     "@types/vscode": "^1.74.0",
     "@vscode/vsce": "^2.15.0",
     "cheerio": "^1.0.0-rc.10",
+    "fast-check": "^3.23.1",
+    "jsdom": "^25.0.1",
+    "@types/jsdom": "^21.1.7",
+    "mocha": "^10.8.2",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vscode-uri": "^3.1.0"
   },

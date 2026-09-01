@@ -1,0 +1,389 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add test runner and dependencies, wire up the `test` script": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787906467480
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787906475432
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907544807
+      }
+    ],
+    "2.1 Add `updateProviderAt(config, index, providerId, envVars, model)` to `src/auth/authConfig.ts`": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787906467572
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907548778
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907607242
+      }
+    ],
+    "3. Checkpoint - backend logic": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787906467660
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908561595
+      }
+    ],
+    "4.1 Implement the `updateExisting` branch in `openAuthWizard.onDidReceiveMessage` in `src/auth/authWizardPanel.ts`": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787906467737
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907621478
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907763828
+      }
+    ],
+    "5.1 Render a per-row Edit control and extend the delegated click handler in `getWizardHtml`": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787906467805
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907774339
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907885662
+      }
+    ],
+    "6.1 Implement `enterEditMode(idx)` and `prefillForm(profile)` in `getWizardHtml`": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787906467875
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907895429
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908007209
+      }
+    ],
+    "7. Checkpoint - webview prefill": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787906467946
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908562123
+      }
+    ],
+    "8.1 Implement `updatePrimaryButton()` and mode-aware submit in the `btnNew` handler": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787906468029
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908016217
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908216696
+      }
+    ],
+    "9.1 Reset the form to Create_Mode on the `saved` reply in `getWizardHtml`": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787906468103
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908222645
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908379185
+      }
+    ],
+    "10. Final checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787906468177
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908577791
+      }
+    ],
+    "1. Establish test tooling for backend and webview helpers": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907544899
+      }
+    ],
+    "2. Implement `updateProviderAt` in the config backend": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907607329
+      }
+    ],
+    "2.2 Write property test for valid update behavior": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907622434
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907759585
+      }
+    ],
+    "2.3 Write property test for invalid update rejection": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907623370
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907760507
+      }
+    ],
+    "2.4 Write property test for out-of-range index rejection": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907624328
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907761414
+      }
+    ],
+    "2.5 Write property test for Create_Mode append (regression guard)": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907625190
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907762853
+      }
+    ],
+    "4. Add the `updateExisting` host message branch": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907763917
+      }
+    ],
+    "4.2 Write integration test for 0600 persistence after update": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907773423
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907886571
+      }
+    ],
+    "5. Add webview Edit control and edit state": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907885741
+      }
+    ],
+    "5.2 Write property test for per-profile edit control rendering": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787907896453
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908007821
+      }
+    ],
+    "6. Implement Edit_Mode entry and prefill": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908007297
+      }
+    ],
+    "6.2 Write property test for Edit_Mode prefill fidelity": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908017648
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908212841
+      }
+    ],
+    "6.3 Write property test for OVHcloud model dropdown options": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908018642
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908213775
+      }
+    ],
+    "6.4 Write property test for OVHcloud model prefill round-trip": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908019508
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908214687
+      }
+    ],
+    "6.5 Write property test for masked secret fields": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908020409
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908215625
+      }
+    ],
+    "8. Implement mode-aware button label and submit dispatch": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908216778
+      }
+    ],
+    "8.2 Write property test for env value collection (edits vs preserved)": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908223584
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908382220
+      }
+    ],
+    "8.3 Write property test for rendered env inputs matching provider": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908224539
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908381522
+      }
+    ],
+    "8.4 Write property test for Update_Message assembly": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908225380
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908380573
+      }
+    ],
+    "9. Wire reset to Create_Mode after a persisted update": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908379275
+      }
+    ],
+    "9.2 Write property test for refreshed list reflecting updates": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908394650
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908554812
+      }
+    ],
+    "9.3 Write example tests for mode transitions": [
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908395601
+      },
+      {
+        "executionId": "6756a8ce-3020-4153-8c9d-41fae7e294c7",
+        "chatSessionId": "sess_6f7ec56e-7700-48c4-b3b5-f517380551e2",
+        "timestamp": 1787908553803
+      }
+    ]
+  }
+}

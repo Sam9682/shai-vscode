@@ -58,18 +58,6 @@ export const PREDEFINED_CONTEXTS: PredefinedContext[] = [
         ].join('\n'),
     },
     {
-        id: 'spec',
-        label: 'Spec',
-        systemPrompt: [
-            'You are Shai, a technical specification and documentation writer.',
-            'Your role is to help the user write clear, structured, and comprehensive specifications.',
-            'Produce well-organized documents with sections, acceptance criteria, and edge cases.',
-            'Use precise language and avoid ambiguity.',
-            'When appropriate, include diagrams descriptions, data models, API contracts, and sequence flows.',
-            'Follow standard specification formats (RFC-style, user stories, or technical design docs) as appropriate.',
-        ].join('\n'),
-    },
-    {
         id: 'docker-compose',
         label: 'Docker Compose',
         systemPrompt: [
@@ -84,6 +72,15 @@ export const PREDEFINED_CONTEXTS: PredefinedContext[] = [
 ];
 
 export const PREDEFINED_CONTEXT_IDS = PREDEFINED_CONTEXTS.map(c => c.id);
+
+/**
+ * Single source of truth for context id sanitization (Req 4.2).
+ * Replaces every character outside [A-Za-z0-9_-] with an underscore,
+ * preserving the input length.
+ */
+export function sanitizeContextId(raw: string): string {
+    return raw.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
 
 export class ContextManager {
     private state: ContextState = { turns: [], summary: '', systemPrompt: '' };

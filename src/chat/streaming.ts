@@ -10,6 +10,33 @@ export interface StreamingResponse {
   stage?: string;
 }
 
+/** Kinds of streaming/server failures that produce an actionable message. (Req 7.1-7.4) */
+export type StreamErrorKind = 'spawn-failure' | 'timeout' | 'server-status' | 'fetch-failure';
+
+/** Context used to build an actionable streaming error message. */
+export interface StreamErrorContext {
+  shaiCommand?: string;
+  serverUrl?: string;
+  status?: number;
+}
+
+/**
+ * Pure formatter that turns a streaming/server failure into a human-readable,
+ * actionable message. Uses safe `??` fallbacks so missing context never throws. (Req 7.1-7.4)
+ */
+export function describeStreamingError(kind: StreamErrorKind, ctx: StreamErrorContext): string {
+  switch (kind) {
+    case 'spawn-failure':
+      return `Could not start shai. Check that the configured shai command "${ctx.shaiCommand ?? 'shai'}" is installed and on your PATH.`;
+    case 'timeout':
+      return `The request timed out. Try again; if it keeps timing out, the model or server may be busy.`;
+    case 'server-status':
+      return `The server returned an error (HTTP ${ctx.status ?? '?'}). Check the configured server URL "${ctx.serverUrl ?? ''}".`;
+    case 'fetch-failure':
+      return `Could not reach the server. Check that it is running and that the configured server URL "${ctx.serverUrl ?? ''}" is correct.`;
+  }
+}
+
 export class StreamingChatSession {
   private messages: any[] = [];
   private static serverProcess: import('child_process').ChildProcess | null = null;
@@ -111,7 +138,7 @@ This will be converted into clickable buttons in the UI.`;
         onProgress({
           id: this.generateId(),
           type: 'error',
-          data: 'Command timed out after 5 minutes',
+          data: describeStreamingError('timeout', {}),
           timestamp: Date.now()
         });
         reject(new Error('Command timed out after 5 minutes'));
@@ -163,14 +190,13 @@ This will be converted into clickable buttons in the UI.`;
 
       child.on('error', (error) => {
         clearTimeout(timeout);
-        const errorMessage = `Error: ${error.message}`;
         onProgress({
           id: this.generateId(),
           type: 'error',
-          data: errorMessage,
+          data: describeStreamingError('spawn-failure', { shaiCommand }),
           timestamp: Date.now()
         });
-        reject(new Error(errorMessage));
+        reject(new Error(`Error: ${error.message}`));
       });
     });
   }
@@ -211,8 +237,9 @@ This will be converted into clickable buttons in the UI.`;
     interactionMode: string = 'none'
   ): Promise<string> {
     let stdout = '';
+    let res: Response;
     try {
-      const res = await fetch(`${serverUrl}/ask`, {
+      res = await fetch(`${serverUrl}/ask`, {
         method: 'POST',
         headers: { 
             'Content-Type': 'text/plain',
@@ -220,9 +247,25 @@ This will be converted into clickable buttons in the UI.`;
         },
         body: message
       });
-      if (!res.ok || !res.body) {
-        throw new Error(`server returned ${res.status}`);
-      }
+    } catch (err: any) {
+      onProgress({
+        id: this.generateId(),
+        type: 'error',
+        data: describeStreamingError('fetch-failure', { serverUrl }),
+        timestamp: Date.now()
+      });
+      throw err;
+    }
+    if (!res.ok || !res.body) {
+      onProgress({
+        id: this.generateId(),
+        type: 'error',
+        data: describeStreamingError('server-status', { serverUrl, status: res.status }),
+        timestamp: Date.now()
+      });
+      throw new Error(`server returned ${res.status}`);
+    }
+    try {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';

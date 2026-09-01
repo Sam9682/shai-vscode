@@ -1,0 +1,128 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "Bug confirmed on unfixed code — all 4 exploration cases fail (48 pre-existing tests still pass):\n- Case A (script parse): new Function(scriptSource) throws SyntaxError. The extracted inline IIFE is not valid JavaScript because of the TypeScript cast `(window as any).webkitAudioContext` at ~chatView.ts:986.\n- Case B (ENTER dispatch): counterexample [\"!\", {noExtraContext:false, autopilot:false}] — ENTER posts 0 chat-prompt messages (expected 1). jsdom aborts the IIFE with \"SyntaxError: Invalid regular expression flags\" (the parser chokes on the `as any` cast), so the keydown listener is never attached.\n- Case C (Send dispatch): counterexample [\"!\", {noExtraContext:false, autopilot:false}] — Send click posts 0 chat-prompt messages (expected 1); same parse-time abort prevents the click listener from registering.\n- Case D (no TS-only syntax): the inline script still matches the `as any` pattern, so TypeScript-only syntax remains.\nRoot cause confirmed: `new (window.AudioContext || (window as any).webkitAudioContext)()` inside playCompletionSound makes the whole inline script fail to parse, so neither ENTER nor Send dispatch a chat-prompt.",
+      "lastRunTimestamp": 1788254416093
+    },
+    "2. Write preservation property tests (BEFORE implementing fix)": {
+      "status": "passed",
+      "lastRunTimestamp": 1788254824711
+    },
+    "3.2 Verify bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1788255246708
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test": [
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788254034358
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788254044115
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788254442976
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788254034497
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788254448414
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788254855990
+      }
+    ],
+    "3.1 Implement the fix": [
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788254034599
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788254860638
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788255033965
+      }
+    ],
+    "3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788254034710
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788255038834
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788255266858
+      }
+    ],
+    "3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788254034826
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788255271722
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788257360163
+      }
+    ],
+    "4. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788254035007
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788257365335
+      },
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788257840208
+      }
+    ],
+    "3. Fix for invalid TypeScript cast in the webview inline script breaking prompt submission": [
+      {
+        "executionId": "ba73da06-4067-4211-9279-c4c8019a1d87",
+        "chatSessionId": "sess_20919854-6dd1-4f36-b32e-f9657ea17f9c",
+        "timestamp": 1788257360519
+      }
+    ]
+  }
+}

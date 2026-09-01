@@ -1,0 +1,381 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Extract formatting/validation helpers into a testable module": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910257481
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910269948
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912529982
+      }
+    ],
+    "2.1 Implement `escapeHtml` as the mandatory first transform": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910257603
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912536454
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912653613
+      }
+    ],
+    "3.1 Implement `isAllowedUrl` scheme gate for the webview": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910257712
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912537971
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912654608
+      }
+    ],
+    "4.1 Extract fenced code blocks to placeholders before inline transforms": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910257814
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912538788
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912656048
+      }
+    ],
+    "4.2 Restore code blocks with language label and copy button": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910257926
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912674010
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913557981
+      }
+    ],
+    "5.1 Linkify markdown links then bare URLs": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910258021
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912675541
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913559321
+      }
+    ],
+    "6.1 Implement inline transforms and nested lists": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910258128
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912676304
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913560844
+      }
+    ],
+    "7.1 Wire the pipeline in fixed order": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910258227
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913566345
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913761223
+      }
+    ],
+    "8. Checkpoint - Ensure formatting module tests pass": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910258324
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913766448
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913817605
+      }
+    ],
+    "9.1 Replace `formatMessage` in the inline template and add styles": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910258439
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913822804
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913990306
+      }
+    ],
+    "9.2 Render per-message timestamp in `appendMessage`": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910258534
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913824053
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913991704
+      }
+    ],
+    "9.3 Extend messages-container click delegation": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910258627
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913825575
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913993155
+      }
+    ],
+    "9.4 Route streaming paths through the formatter": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910258721
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913826736
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913994129
+      }
+    ],
+    "10.1 Sync `src/views/chatView.html` with the inline template": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910258819
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913998527
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787914198299
+      }
+    ],
+    "11.1 Add host-side `isHttpUrl` validation helper": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910258933
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910270837
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912531042
+      }
+    ],
+    "11.2 Add `openExternal` case to the `resolveWebviewView` switch": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910259044
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912540153
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912657299
+      }
+    ],
+    "11.3 Add `openExternal` case to the static `openPanel` switch": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910259144
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912672663
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913561699
+      }
+    ],
+    "12. Final checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787910259239
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787914204993
+      },
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787914261143
+      }
+    ],
+    "1. Set up testable webview formatting module and test harness": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912530207
+      }
+    ],
+    "2. Implement HTML escaping (pipeline foundation)": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912653736
+      }
+    ],
+    "3. Implement URL validation gate": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787912654735
+      }
+    ],
+    "4. Implement fenced code extraction and restoration": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913558113
+      }
+    ],
+    "5. Implement linkify transforms": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913559432
+      }
+    ],
+    "6. Implement nested list rendering and inline transforms": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913560995
+      }
+    ],
+    "11. Implement host-side `openExternal` handling": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913561849
+      }
+    ],
+    "7. Assemble the full `formatMessage` pipeline": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913761363
+      }
+    ],
+    "9. Integrate formatting and interactions into the inline webview template (`getHtmlContent()`)": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787913994255
+      }
+    ],
+    "10. Mirror changes into the standalone `chatView.html`": [
+      {
+        "executionId": "121c48d4-64ca-40f2-a2b7-8df98c3b12e9",
+        "chatSessionId": "sess_0cdcde87-0ccb-4735-9d66-df922684003e",
+        "timestamp": 1787914198491
+      }
+    ]
+  }
+}

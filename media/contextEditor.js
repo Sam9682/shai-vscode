@@ -24,7 +24,29 @@
       g("newCtxId").value = "";
       g("newCtxSystem").value = "";
       g("newCtxError").classList.add("hidden");
+      g("newCtxSanitizeNotice").classList.add("hidden");
       g("newCtxId").focus();
+    }
+  });
+
+  // ---- Sanitize preview notice ----
+  g("newCtxId").addEventListener("input", function() {
+    const raw = this.value;
+    const safe = sanitizeId(raw);
+    const notice = g("newCtxSanitizeNotice");
+    if (safe !== raw) {
+      notice.textContent = "Spaces and special characters will be replaced with underscores \u2192 " + safe;
+      notice.classList.remove("hidden");
+    } else {
+      notice.classList.add("hidden");
+    }
+  });
+
+  // ---- Template selector ----
+  g("newCtxTemplate").addEventListener("change", function() {
+    const opt = this.options[this.selectedIndex];
+    if (opt && typeof opt.dataset.systemPrompt === "string") {
+      g("newCtxSystem").value = opt.dataset.systemPrompt;
     }
   });
 
@@ -38,6 +60,9 @@
     const safe = sanitizeId(raw);
     g("newCtxError").classList.add("hidden");
     if (!safe) { g("newCtxId").focus(); return; }
+    // Duplicate name: show the error and retain the entered values (do NOT clear/hide the
+    // form and do NOT post 'newContext'). The early return keeps #newCtxId and
+    // #newCtxSystem intact. (Req 4.5)
     if (knownIds.indexOf(safe) !== -1 || predefinedIds.indexOf(safe) !== -1) { g("newCtxError").classList.remove("hidden"); return; }
     vscode.postMessage({ type: "newContext", id: safe, systemPrompt: g("newCtxSystem").value });
     g("newCtxSection").classList.add("hidden");
@@ -104,6 +129,22 @@
     });
     g("activeName").textContent = labels[currentActive] || currentActive;
     g("btnDeleteCtx").disabled  = knownIds.length <= 1 || predefinedIds.indexOf(sel.value) !== -1;
+
+    var templates = msg.templates || [];
+    var tplSel = g("newCtxTemplate");
+    while (tplSel.firstChild) tplSel.removeChild(tplSel.firstChild);
+    var none = document.createElement("option");
+    none.value = "";
+    none.textContent = "None (blank)";
+    none.dataset.systemPrompt = "";
+    tplSel.appendChild(none);
+    templates.forEach(function(t) {
+      var opt = document.createElement("option");
+      opt.value = t.id;
+      opt.textContent = t.label || t.id;
+      opt.dataset.systemPrompt = t.systemPrompt || "";
+      tplSel.appendChild(opt);
+    });
 
     const st = msg.state || {};
     g("systemPrompt").value = st.systemPrompt || "";

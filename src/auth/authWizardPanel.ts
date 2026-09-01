@@ -4,9 +4,11 @@ import {
     saveAuthConfig,
     validateNewProvider,
     removeProviderAt,
+    updateProviderAt,
     PROVIDER_LABELS,
     PROVIDER_ENV_FIELDS,
     OVHCLOUD_MODEL_OPTIONS,
+    MODEL_HELP,
     type ProviderConfig,
 } from './authConfig';
 
@@ -49,6 +51,7 @@ export function openAuthWizard(_context: vscode.ExtensionContext): void {
                             providerOptions: PROVIDER_LABELS,
                             envFields: PROVIDER_ENV_FIELDS,
                             ovhcloudModels: OVHCLOUD_MODEL_OPTIONS,
+                            modelHelp: MODEL_HELP,
                         });
                     } catch (e: unknown) {
                         const m = e instanceof Error ? e.message : String(e);
@@ -113,6 +116,26 @@ export function openAuthWizard(_context: vscode.ExtensionContext): void {
                     saveAuthConfig(cfg);
                     panel.webview.postMessage({ type: 'saved', config: cfg, clearNew: true });
                     vscode.window.showInformationMessage(`Profile created and active: ${providerId} / ${model}`);
+                    return;
+                }
+                if (msg.type === 'updateExisting') {
+                    const idx = msg.index;
+                    if (typeof idx !== 'number' || idx < 0) {
+                        panel.webview.postMessage({ type: 'error', message: 'Invalid selection.' });
+                        return;
+                    }
+                    const providerId = (msg.provider || '').trim();
+                    const model = (msg.model || '').trim();
+                    const envVars = msg.env_vars || {};
+                    const cfg = loadAuthConfig();
+                    const err = updateProviderAt(cfg, idx, providerId, envVars, model);
+                    if (err) {
+                        panel.webview.postMessage({ type: 'error', message: err });
+                        return;
+                    }
+                    saveAuthConfig(cfg);
+                    panel.webview.postMessage({ type: 'saved', config: cfg, clearNew: true });
+                    vscode.window.showInformationMessage(`Profile updated: ${providerId} / ${model}`);
                     return;
                 }
             } catch (e: unknown) {
@@ -184,6 +207,8 @@ function getWizardHtml(nonce: string, cspSource: string): string {
       color: var(--vscode-button-secondaryForeground);
     }
     .hint { font-size: 11px; opacity: 0.8; margin-top: 4px; }
+    .cred-help { margin-top: 12px; }
+    .cred-help summary { cursor: pointer; font-size: 12px; }
     .err { color: var(--vscode-errorForeground); margin-top: 8px; }
     .hidden { display: none !important; }
     /* Spacing between label text and action buttons (profile rows + Activate row) */
@@ -326,7 +351,12 @@ function getWizardHtml(nonce: string, cspSource: string): string {
         <input type="text" id="model" placeholder="e.g. claude-sonnet-4-20250514" autocomplete="off" />
         <select id="modelOvh" class="hidden"></select>
         <input type="text" id="modelOvhCustom" class="hidden" placeholder="Custom model ID" autocomplete="off" />
+        <div class="hint" id="modelHelp"></div>
       </div>
+      <details class="cred-help">
+        <summary>How do I get these credentials?</summary>
+        <div class="hint">Each provider issues API keys from its own console or dashboard. For Anthropic, OpenAI, Mistral, and OpenRouter, sign in to the provider's website and create an API key in the account/API settings, then paste it above. For OVHcloud AI Endpoints, generate a token from the OVHcloud manager. For a local Ollama server, no API key is needed — just point the base URL at your running instance (for example <code>http://localhost:11434/v1</code>). For an OpenAI-compatible endpoint, use the base URL and key provided by that service.</div>
+      </details>
       <button type="button" id="btnNew">Create and activate</button>
     </div>
   </fieldset>
@@ -344,13 +374,75 @@ function getWizardHtml(nonce: string, cspSource: string): string {
   const modelLabel = document.getElementById('modelLabel');
   const modelOvh = document.getElementById('modelOvh');
   const modelOvhCustom = document.getElementById('modelOvhCustom');
+  const modelHelp = document.getElementById('modelHelp');
   const btnNew = document.getElementById('btnNew');
   const msgErr = document.getElementById('msgErr');
   const newProfileBody = document.getElementById('newProfileBody');
   const btnToggleNew = document.getElementById('btnToggleNew');
 
   var OVH_CUSTOM = '__custom__';
-  let state = { config: null, envFieldSchema: {}, providerOptions: [], ovhcloudModels: [] };
+  let state = { config: null, envFieldSchema: {}, providerOptions: [], ovhcloudModels: [], modelHelp: {} };
+
+  // Mirror of getModelHelp in authConfig.ts: safe accessor, never undefined. (Req 2.1, 2.2)
+  function getModelHelp(providerId) {
+    var map = state.modelHelp || {};
+    var v = map[providerId];
+    return (typeof v === 'string' && v.length > 0) ? v : 'Enter the model identifier expected by this provider.';
+  }
+  // Create_Mode when null; Edit_Mode holds the Profile_Index under edit.
+  let editingIndex = null;
+
+  function isEditing() {
+    return editingIndex !== null;
+  }
+
+  // Enter Edit_Mode for a profile: store the index, reveal the form, prefill it
+  // from the stored profile, and relabel the primary button.
+  function enterEditMode(idx) {
+    editingIndex = idx;
+    if (newProfileBody) newProfileBody.classList.remove('hidden');
+    updateToggleBtn();
+    var profile = state.config && state.config.providers ? state.config.providers[idx] : null;
+    if (profile) prefillForm(profile);
+    updatePrimaryButton();
+  }
+
+  // Pre-fill the Profile_Form from an existing profile's stored values.
+  function prefillForm(profile) {
+    if (!profile) return;
+    var providerId = profile.provider;
+    if (newProvider) newProvider.value = providerId;
+    // Env fields: render the schema inputs then populate each from env_vars.
+    renderEnvInputs(providerId);
+    var envVars = profile.env_vars || {};
+    var fields = state.envFieldSchema[providerId] || [];
+    fields.forEach(function (f) {
+      var el = document.getElementById('env_' + f.key);
+      if (el) el.value = envVars[f.key] != null ? envVars[f.key] : '';
+    });
+    // Model controls: render then set the effective value.
+    renderModelControls(providerId);
+    if (providerId === 'ovhcloud') {
+      var opts = state.ovhcloudModels || [];
+      if (opts.indexOf(profile.model) !== -1) {
+        if (modelOvh) modelOvh.value = profile.model;
+        if (modelOvhCustom) modelOvhCustom.value = '';
+      } else {
+        if (modelOvh) modelOvh.value = OVH_CUSTOM;
+        if (modelOvhCustom) modelOvhCustom.value = profile.model || '';
+      }
+      syncOvhCustom();
+    } else {
+      if (model) model.value = profile.model || '';
+    }
+  }
+
+  // Set the primary button label based on the current mode: "Update profile"
+  // in Edit_Mode, the create label in Create_Mode. Called on load, on entering
+  // Edit_Mode, and whenever the mode changes.
+  function updatePrimaryButton() {
+    if (btnNew) btnNew.textContent = isEditing() ? 'Update profile' : 'Create and activate';
+  }
 
   function showErr(t) {
     if (!t) { msgErr.classList.add('hidden'); msgErr.textContent = ''; return; }
@@ -403,6 +495,8 @@ function getWizardHtml(nonce: string, cspSource: string): string {
       }
     }
     if (modelLabel) modelLabel.setAttribute('for', isOvh ? 'modelOvh' : 'model');
+    // Per-provider model guidance, updated on every provider change. (Req 2.1, 2.2)
+    if (modelHelp) modelHelp.textContent = getModelHelp(providerId);
   }
 
   function getModelValue() {
@@ -422,6 +516,11 @@ function getWizardHtml(nonce: string, cspSource: string): string {
     renderEnvInputs(pid);
     renderModelControls(pid);
     applyDefaults(pid);
+    // Return the form to Create_Mode (Req 5.5): clear the Edit_Mode index and
+    // relabel the primary button back to the create label. Harmless no-op when
+    // already in Create_Mode (editingIndex already null), e.g. the init handler.
+    editingIndex = null;
+    updatePrimaryButton();
   }
 
   function renderExisting() {
@@ -453,6 +552,13 @@ function getWizardHtml(nonce: string, cspSource: string): string {
       line.appendChild(lab);
       const trail = document.createElement('div');
       trail.className = 'profile-trailing';
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'secondary btn-edit';
+      edit.textContent = 'Edit';
+      edit.title = 'Edit this profile';
+      edit.dataset.index = String(i);
+      trail.appendChild(edit);
       const del = document.createElement('button');
       del.type = 'button';
       del.className = 'secondary btn-del';
@@ -469,6 +575,15 @@ function getWizardHtml(nonce: string, cspSource: string): string {
 
   existingList.addEventListener('click', function (ev) {
     const t = ev.target;
+    const editBtn = t && t.closest ? t.closest('.btn-edit') : null;
+    if (editBtn) {
+      if (editBtn.disabled) return;
+      const editIdx = parseInt(editBtn.dataset.index, 10);
+      if (isNaN(editIdx)) return;
+      showErr('');
+      enterEditMode(editIdx);
+      return;
+    }
     const btn = t && t.closest ? t.closest('.btn-del') : null;
     if (!btn) return;
     if (btn.disabled) return;
@@ -502,9 +617,20 @@ function getWizardHtml(nonce: string, cspSource: string): string {
       inp.dataset.key = f.key;
       inp.type = f.secret ? 'password' : 'text';
       inp.autocomplete = 'off';
-      if (f.placeholder) inp.placeholder = f.placeholder;
+      // Placeholder: example wins over legacy placeholder. (Req 1.4, 1.6)
+      inp.placeholder = f.example || f.placeholder || '';
       wrap.appendChild(lab);
       wrap.appendChild(inp);
+      // Inline help associated with the input via aria-describedby. (Req 1.5)
+      if (f.help) {
+        const helpId = 'help_' + f.key;
+        const hint = document.createElement('div');
+        hint.className = 'hint';
+        hint.id = helpId;
+        hint.textContent = f.help;
+        inp.setAttribute('aria-describedby', helpId);
+        wrap.appendChild(hint);
+      }
       envFields.appendChild(wrap);
     });
   }
@@ -551,11 +677,13 @@ function getWizardHtml(nonce: string, cspSource: string): string {
       state.envFieldSchema = m.envFields || {};
       state.providerOptions = m.providerOptions || [];
       state.ovhcloudModels = m.ovhcloudModels || [];
+      state.modelHelp = m.modelHelp || {};
       renderProviderSelect();
       renderExisting();
       newProfileBody.classList.add('hidden');
       updateToggleBtn();
       clearNewForm();
+      updatePrimaryButton();
     }
     if (m.type === 'saved') {
       state.config = m.config;
@@ -587,6 +715,21 @@ function getWizardHtml(nonce: string, cspSource: string): string {
 
   btnNew.addEventListener('click', function () {
     showErr('');
+    if (isEditing()) {
+      // Edit_Mode: write edited values back into the existing profile.
+      // Reuse the same env-collection and model helpers as saveNew so
+      // unchanged pre-filled secrets carry their originals and overwritten
+      // ones carry the new values.
+      vscode.postMessage({
+        type: 'updateExisting',
+        index: editingIndex,
+        provider: newProvider.value,
+        env_vars: collectEnvVars(newProvider.value),
+        model: getModelValue(),
+      });
+      return;
+    }
+    // Create_Mode: append a new profile (unchanged).
     vscode.postMessage({
       type: 'saveNew',
       provider: newProvider.value,

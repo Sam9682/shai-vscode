@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "noEmit": true,
+    "types": ["node", "mocha"],
+    "lib": ["ES2020", "DOM"]
+  },
+  "include": ["src/**/*", "test/**/*"]
+}
