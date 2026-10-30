@@ -35,6 +35,9 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+.vscode/
+.kiro/
+.shai/
 
 # Temporary files
 *~
