@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ChatController } from '../chat/controller';
 import { ReasoningViewProvider } from './reasoningView';
 import { buildPrompt } from '../context/promptBuilder';
+import { getShaiWorkingDir } from '../chat/streaming';
 import { PREDEFINED_CONTEXTS, ContextManager } from '../context/contextManager';
 
 /**
@@ -15,6 +16,65 @@ export function isHttpUrl(raw: string): boolean {
         return scheme === 'http' || scheme === 'https';
     } catch {
         return false;
+    }
+}
+
+/**
+ * Extracts the filesystem path from a `vscode://file/<path>[:line[:col]]` URL.
+ * Returns undefined for any other URL. Only the `file` authority is accepted.
+ */
+export function parseVscodeFileUrl(raw: string): { path: string; line?: number; column?: number } | undefined {
+    const m = /^(?:vscode:\/\/file|file:\/\/)(\/[^?#]*)/i.exec(raw.trim());
+    if (!m) { return undefined; }
+    let p: string;
+    try {
+        p = decodeURIComponent(m[1]);
+    } catch {
+        return undefined;
+    }
+    let line: number | undefined;
+    let column: number | undefined;
+    const pos = /^(.*?):(\d+)(?::(\d+))?$/.exec(p);
+    if (pos) {
+        p = pos[1];
+        line = parseInt(pos[2], 10);
+        column = pos[3] ? parseInt(pos[3], 10) : undefined;
+    }
+    return { path: p, line, column };
+}
+
+/**
+ * Opens a link clicked in the chat: http(s) in the browser, vscode://file/...
+ * in the editor (files) or the Explorer / a new window (directories).
+ * Other schemes are silently rejected.
+ */
+export async function openChatLink(url: unknown): Promise<void> {
+    if (typeof url !== 'string') { return; }
+    if (isHttpUrl(url)) {
+        await vscode.env.openExternal(vscode.Uri.parse(url));
+        return;
+    }
+    const target = parseVscodeFileUrl(url);
+    if (!target) { return; }
+    const uri = vscode.Uri.file(target.path);
+    try {
+        const stat = await vscode.workspace.fs.stat(uri);
+        if (stat.type & vscode.FileType.Directory) {
+            if (vscode.workspace.getWorkspaceFolder(uri)) {
+                await vscode.commands.executeCommand('revealInExplorer', uri);
+            } else {
+                await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+            }
+            return;
+        }
+        const options: vscode.TextDocumentShowOptions = {};
+        if (target.line !== undefined) {
+            const pos = new vscode.Position(Math.max(0, target.line - 1), Math.max(0, (target.column ?? 1) - 1));
+            options.selection = new vscode.Range(pos, pos);
+        }
+        await vscode.commands.executeCommand('vscode.open', uri, options);
+    } catch {
+        void vscode.window.showWarningMessage(`Cannot open: ${target.path}`);
     }
 }
 
@@ -177,11 +237,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                         break;
                     }
                     case 'openExternal': {
-                        const url: string = message.url;
-                        if (typeof url === 'string' && isHttpUrl(url)) {
-                            await vscode.env.openExternal(vscode.Uri.parse(url));
-                        }
-                        // Non-http(s) schemes are silently rejected: no openExternal call.
+                        await openChatLink(message.url);
                         break;
                     }
                 }
@@ -233,11 +289,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     vscode.window.showInformationMessage(`Action: ${data.label} - Data: ${data.data}`);
                     break;
                 case 'openExternal': {
-                    const url: string = data.url;
-                    if (typeof url === 'string' && isHttpUrl(url)) {
-                        await vscode.env.openExternal(vscode.Uri.parse(url));
-                    }
-                    // Non-http(s) schemes are silently rejected: no openExternal call.
+                    await openChatLink(data.url);
                     break;
                 }
             }
@@ -257,7 +309,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 contextManager.getSummary(),
                 contextManager.getRecentTurns(),
                 cleanMessage,
-                contextManager.getSystemPrompt()
+                contextManager.getSystemPrompt(),
+                getShaiWorkingDir()
             );
 
         const extractAndForwardReasoning = (text: string): string => {
@@ -412,7 +465,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 contextManager.getSummary(),
                 contextManager.getRecentTurns(),
                 cleanMessage,
-                contextManager.getSystemPrompt()
+                contextManager.getSystemPrompt(),
+                getShaiWorkingDir()
             );
 
         const extractAndForwardReasoning = (text: string): string => {
@@ -714,7 +768,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const trimmed = url.trim();
         if (trimmed.length === 0) { return false; }
         if (/[\\s\\u0000-\\u001f\\u007f]/.test(trimmed)) { return false; }
-        return /^https?:\\/\\//i.test(trimmed);
+        return /^(?:https?|vscode|file):\\/\\//i.test(trimmed);
     }
 
     function makeCodeToken(index) {
@@ -822,7 +876,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             mdAnchors.push(renderAnchor(url, label));
             return token;
         });
-        out = out.replace(/https?:\\/\\/[^\\s<]+/gi, (match) => {
+        out = out.replace(/(?:https?|vscode|file):\\/\\/[^\\s<]+/gi, (match) => {
             const parts = splitTrailingPunctuation(match);
             if (!isAllowedUrl(parts.url)) { return match; }
             return renderAnchor(parts.url, parts.url) + parts.trailing;

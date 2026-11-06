@@ -3,6 +3,7 @@ import { DockerController } from '../docker/dockerController';
 import { ChatController } from '../chat/controller';
 import { PREDEFINED_CONTEXTS } from '../context/contextManager';
 import { buildPrompt } from '../context/promptBuilder';
+import { getShaiWorkingDir } from '../chat/streaming';
 
 export class DeploymentsViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'shai-deployments-view';
@@ -143,7 +144,8 @@ export class DeploymentsViewProvider implements vscode.WebviewViewProvider {
                 dockerComposeCtx.getSummary(),
                 dockerComposeCtx.getRecentTurns(),
                 message,
-                systemPrompt
+                systemPrompt,
+                getShaiWorkingDir()
             );
 
             const onProgress = (progress: any) => {

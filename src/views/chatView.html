@@ -118,7 +118,7 @@
         const trimmed = url.trim();
         if (trimmed.length === 0) { return false; }
         if (/[\s\u0000-\u001f\u007f]/.test(trimmed)) { return false; }
-        return /^https?:\/\//i.test(trimmed);
+        return /^(?:https?|vscode|file):\/\//i.test(trimmed);
     }
 
     function makeCodeToken(index) {
@@ -226,7 +226,7 @@
             mdAnchors.push(renderAnchor(url, label));
             return token;
         });
-        out = out.replace(/https?:\/\/[^\s<]+/gi, (match) => {
+        out = out.replace(/(?:https?|vscode|file):\/\/[^\s<]+/gi, (match) => {
             const parts = splitTrailingPunctuation(match);
             if (!isAllowedUrl(parts.url)) { return match; }
             return renderAnchor(parts.url, parts.url) + parts.trailing;

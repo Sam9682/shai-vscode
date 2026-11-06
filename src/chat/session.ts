@@ -74,11 +74,11 @@ export class ChatSession {
                 command = 'wsl';
                 // Properly escape the message for bash -c
                 const escapedMessage = message.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
-                args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} "${escapedMessage}"`];
+                args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} --prompt "${escapedMessage}"`];
             } else {
                 cwd = workspaceFolder;
                 command = shaiCommand;
-                args = [message];
+                args = ['--prompt', message];
             }
             
             // Never use shell mode to avoid special character interpretation

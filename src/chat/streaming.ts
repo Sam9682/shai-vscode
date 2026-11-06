@@ -10,6 +10,30 @@ export interface StreamingResponse {
   stage?: string;
 }
 
+/** Converts a Windows path (C:\foo) to its WSL form (/mnt/c/foo). Other paths only get '/' separators. */
+export function windowsToWSLPath(windowsPath: string): string {
+  let wslPath = windowsPath.replace(/\\/g, '/');
+  if (/^[A-Za-z]:/.test(wslPath)) {
+    const drive = wslPath[0].toLowerCase();
+    wslPath = `/mnt/${drive}${wslPath.substring(2)}`;
+  }
+  return wslPath;
+}
+
+/**
+ * The directory shai runs in, expressed as shai sees it (same logic as the
+ * CLI spawn below): the first workspace folder, converted to a WSL path when
+ * shai is run through WSL from Windows.
+ */
+export function getShaiWorkingDir(): string {
+  const config = vscode.workspace.getConfiguration('shai-vscode');
+  const useWSLConfig = config.get<boolean | null>('useWSL');
+  const platform = os.platform();
+  const useWSL = useWSLConfig !== null && useWSLConfig !== undefined ? useWSLConfig : platform === 'win32';
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
+  return useWSL && platform === 'win32' ? windowsToWSLPath(workspaceFolder) : workspaceFolder;
+}
+
 /** Kinds of streaming/server failures that produce an actionable message. (Req 7.1-7.4) */
 export type StreamErrorKind = 'spawn-failure' | 'timeout' | 'server-status' | 'fetch-failure';
 
@@ -74,7 +98,8 @@ IMPORTANT: When suggesting VS Code actions or commands, format them using this s
 [ACTION:commandId:label] - for VS Code commands (e.g., [ACTION:workbench.action.files.save:Save File])
 [BUTTON:label:data] - for custom actions (e.g., [BUTTON:Create File:path/to/file.ts])
 
-This will be converted into clickable buttons in the UI.`;
+This will be converted into clickable buttons in the UI.
+Files and directories are NOT actions: always write them as markdown links with an absolute file:// target, e.g. [README.md](file:///absolute/path/README.md), never as buttons, bare names or inline code.`;
 
     let command: string;
     let args: string[];
@@ -100,11 +125,12 @@ This will be converted into clickable buttons in the UI.`;
       if (useWSL) {
         cwd = platform === 'win32' ? this.windowsToWSLPath(workspaceFolder) : workspaceFolder;
         command = 'wsl';
-        args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} ${StreamingChatSession.escapeShellArg(contextualMessage)}`];
+        args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} --prompt ${StreamingChatSession.escapeShellArg(contextualMessage)}`];
       } else {
         cwd = workspaceFolder;
         command = shaiCommand;
-        args = [contextualMessage];
+        // shai >= 0.2 treats a bare positional as a subcommand; use headless --prompt
+        args = ['--prompt', contextualMessage];
       }
     // if the user has opted into server mode we bypass the shell call and
     // instead talk to the HTTP/SSE endpoint.  this keeps a single process
@@ -202,12 +228,7 @@ This will be converted into clickable buttons in the UI.`;
   }
 
   private windowsToWSLPath(windowsPath: string): string {
-    let wslPath = windowsPath.replace(/\\/g, '/');
-    if (/^[A-Za-z]:/.test(wslPath)) {
-      const drive = wslPath[0].toLowerCase();
-      wslPath = `/mnt/${drive}${wslPath.substring(2)}`;
-    }
-    return wslPath;
+    return windowsToWSLPath(windowsPath);
   }
 
   private stripAnsi(text: string): string {
@@ -325,10 +346,10 @@ This will be converted into clickable buttons in the UI.`;
         return resolve();
       }
       let command = shaiCommand;
-      let args: string[] = ['server'];
+      let args: string[] = ['serve'];
       if (useWSL) {
         command = 'wsl';
-        args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} server`];
+        args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} serve`];
       }
       // Never use shell mode to avoid special character interpretation
       const proc = spawn(command, args, {

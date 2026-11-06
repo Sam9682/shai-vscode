@@ -122,7 +122,7 @@ export function isAllowedUrl(url: string): boolean {
     if (/[\s\u0000-\u001f\u007f]/.test(trimmed)) {
         return false;
     }
-    return /^https?:\/\//i.test(trimmed);
+    return /^(?:https?|vscode|file):\/\//i.test(trimmed);
 }
 
 // ---------------------------------------------------------------------------
@@ -344,7 +344,7 @@ export function linkify(text: string): string {
     //    targets or emitted anchors. The URL body stops before whitespace and
     //    `<` (start of any following markup) and is then trimmed of trailing
     //    punctuation that is more likely sentence punctuation than URL content.
-    out = out.replace(/https?:\/\/[^\s<]+/gi, (match: string) => {
+    out = out.replace(/(?:https?|vscode|file):\/\/[^\s<]+/gi, (match: string) => {
         const { url, trailing } = splitTrailingPunctuation(match);
         if (!isAllowedUrl(url)) {
             return match;

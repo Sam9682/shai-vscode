@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ContextManager, PREDEFINED_CONTEXT_IDS, PREDEFINED_CONTEXTS, sanitizeContextId } from '../context/contextManager';
 import { ChatController } from '../chat/controller';
 import { buildPrompt } from '../context/promptBuilder';
+import { getShaiWorkingDir } from '../chat/streaming';
 
 export function openContextEditor(
     extensionUri: vscode.Uri,
@@ -29,9 +32,11 @@ class ContextEditorPanel {
         private controller: ChatController
     ) {
         this.panel = panel;
-        this.panel.webview.html = this.buildHtml();
         this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
         this.panel.webview.onDidReceiveMessage(m => this.onMessage(m), null, this.disposables);
+        this.panel.webview.html = this.buildHtml();
+        // Keep the editor in sync when the active context changes elsewhere (e.g. chat combo).
+        this.disposables.push(this.controller.onActiveContextChanged(() => this.sendInit()));
     }
 
     static createOrShow(extensionUri: vscode.Uri, controller: ChatController): void {
@@ -56,13 +61,18 @@ class ContextEditorPanel {
     // ------------------------------------------------------------------
 
     private sendInit(): void {
+        void this.panel.webview.postMessage(this.buildInitMessage());
+    }
+
+    private buildInitMessage(): Record<string, unknown> {
         const ctx = this.controller.getVscodeContext();
         const allIds = ContextManager.listContextIds(ctx);
         const active = this.controller.getActiveContextId();
 
-        // Ensure the active id always appears in the list
-        const idSet = new Set(allIds);
-        if (!idSet.has(active)) { idSet.add(active); }
+        // Predefined contexts are always listed, even if not (yet) persisted,
+        // and the active id always appears in the list.
+        const idSet = new Set([...PREDEFINED_CONTEXT_IDS, ...allIds]);
+        if (active && !idSet.has(active)) { idSet.add(active); }
 
         // Predefined contexts first (in their canonical order), then user contexts sorted
         const predefined = PREDEFINED_CONTEXT_IDS.filter(id => idSet.has(id));
@@ -78,14 +88,14 @@ class ContextEditorPanel {
             systemPrompt: c.systemPrompt,
         }));
 
-        this.panel.webview.postMessage({
+        return {
             type: 'init',
             contextIds: ids,
             activeId: active,
             predefinedIds: PREDEFINED_CONTEXT_IDS,
             templates,
             state,
-        });
+        };
     }
 
     private onMessage(message: { type: string; [key: string]: unknown }): void {
@@ -154,7 +164,8 @@ class ContextEditorPanel {
                     mgr.getSummary(),
                     mgr.getRecentTurns(),
                     (message.userMessage as string) || '(your message here)',
-                    mgr.getSystemPrompt()
+                    mgr.getSystemPrompt(),
+                    getShaiWorkingDir()
                 );
                 this.panel.webview.postMessage({ type: 'previewResult', text: preview });
                 break;
@@ -176,20 +187,53 @@ class ContextEditorPanel {
     private buildHtml(): string {
         const nonce = getNonce();
         const cspSource = this.panel.webview.cspSource;
-        const scriptUri = this.panel.webview.asWebviewUri(
-            vscode.Uri.joinPath(this.extensionUri, 'media', 'contextEditor.js')
-        );
-        return getContextEditorHtml(nonce, cspSource, scriptUri.toString());
+        // The script is inlined (nonce-protected) instead of loaded via
+        // <script src=asWebviewUri(...)>: the external resource load fails in some
+        // setups (e.g. WSL / remote), leaving the page without any logic and the
+        // context selector empty. Inline scripts are what the other Shai webviews use.
+        let script: string;
+        try {
+            script = fs.readFileSync(
+                path.join(this.extensionUri.fsPath, 'media', 'contextEditor.js'),
+                'utf8'
+            );
+        } catch (err) {
+            console.error('Shai: cannot read media/contextEditor.js', err);
+            script = 'document.getElementById("activeName").textContent = "Error: media/contextEditor.js not found";';
+        }
+        // Prevent a literal "</script" in the source from closing the tag early.
+        script = script.replace(/<\/script/gi, '<\\/script');
+        // Initial data is embedded in the page so the selector is populated even if
+        // the getInit round-trip is lost (webview not ready when the reply is posted).
+        const initJson = JSON.stringify(this.buildInitMessage())
+            .replace(/</g, '\\u003c')
+            .replace(/>/g, '\\u003e')
+            .replace(/&/g, '\\u0026');
+        // Server-side render of the selector so the list is visible even before
+        // (or without) the script running. The script re-renders it identically.
+        const init = this.buildInitMessage() as { contextIds: string[]; activeId: string };
+        const labelOf = (id: string) => PREDEFINED_CONTEXTS.find(c => c.id === id)?.label ?? id;
+        const optionsHtml = init.contextIds.map(id => {
+            const pinned = PREDEFINED_CONTEXT_IDS.includes(id) ? '📌 ' : '';
+            const active = id === init.activeId;
+            const text = pinned + labelOf(id) + (active ? '  *' : '');
+            return `<option value="${escapeHtml(id)}"${active ? ' selected' : ''}>${escapeHtml(text)}</option>`;
+        }).join('');
+        return getContextEditorHtml(nonce, cspSource, script, initJson, optionsHtml, escapeHtml(labelOf(init.activeId)));
     }
 }
 
-function getContextEditorHtml(nonce: string, cspSource: string, scriptUri: string): string {
+function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function getContextEditorHtml(nonce: string, cspSource: string, script: string, initJson: string = '{}', optionsHtml: string = '', activeLabel: string = '-'): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src ${cspSource} 'nonce-${nonce}';" />
   <title>Shai - Context editor</title>
   <style>
     body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); margin: 0; padding: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 13px; line-height: 1.45; }
@@ -205,6 +249,20 @@ function getContextEditorHtml(nonce: string, cspSource: string, scriptUri: strin
       font-family: inherit; font-size: 13px;
     }
     textarea { resize: vertical; }
+    /* Native dropdowns: use the dropdown theme colors (as the chat view does) and
+       style the options explicitly, otherwise the popup can render light text on
+       a light background and the entries look empty. */
+    select {
+      background: var(--vscode-dropdown-background, #3c3c3c);
+      color: var(--vscode-dropdown-foreground, #f0f0f0);
+      border: 1px solid var(--vscode-dropdown-border, #555);
+      min-height: 28px; cursor: pointer;
+    }
+    select option {
+      background: var(--vscode-dropdown-listBackground, var(--vscode-dropdown-background, #3c3c3c));
+      color: var(--vscode-dropdown-foreground, #f0f0f0);
+    }
+    select:focus { outline: 1px solid var(--vscode-focusBorder, #007fd4); }
     button {
       background: var(--vscode-button-background); color: var(--vscode-button-foreground);
       border: none; padding: 0 14px; border-radius: 4px; cursor: pointer;
@@ -234,7 +292,7 @@ function getContextEditorHtml(nonce: string, cspSource: string, scriptUri: strin
   <fieldset>
     <legend>Active context</legend>
     <div class="selector-row">
-      <select id="ctxSelect"></select>
+      <select id="ctxSelect">${optionsHtml}</select>
       <button type="button" class="danger" id="btnDeleteCtx">Delete</button>
     </div>
     <div class="confirm-bar hidden" id="confirmDeleteCtx">
@@ -242,7 +300,7 @@ function getContextEditorHtml(nonce: string, cspSource: string, scriptUri: strin
       <button type="button" class="danger" id="confirmDeleteCtxYes">Yes, delete</button>
       <button type="button" class="secondary" id="confirmDeleteCtxNo">Cancel</button>
     </div>
-    <p class="hint">Active: <strong id="activeName">-</strong></p>
+    <p class="hint">Active: <strong id="activeName">${activeLabel}</strong></p>
   </fieldset>
 
   <fieldset>
@@ -291,7 +349,10 @@ function getContextEditorHtml(nonce: string, cspSource: string, scriptUri: strin
     <pre id="previewOutput" class="hidden" style="margin-top:8px;padding:10px;background:var(--vscode-textBlockQuote-background,rgba(128,128,128,.1));border-left:3px solid var(--vscode-textBlockQuote-border,#888);font-size:12px;white-space:pre-wrap;word-break:break-word;border-radius:4px;overflow-x:auto"></pre>
   </fieldset>
 
-  <script nonce="${nonce}" src="${scriptUri}"></script>
+  <script type="application/json" id="initData">${initJson}</script>
+  <script nonce="${nonce}">
+${script}
+  </script>
 </body>
 </html>`;
 }

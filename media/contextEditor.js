@@ -109,7 +109,10 @@
       return;
     }
     if (msg.type !== "init") { return; }
+    applyInit(msg);
+  });
 
+  function applyInit(msg) {
     knownIds = msg.contextIds || [];
     currentActive = msg.activeId || "default";
     predefinedIds = msg.predefinedIds || [];
@@ -148,7 +151,17 @@
 
     const st = msg.state || {};
     g("systemPrompt").value = st.systemPrompt || "";
-  });
+  }
+
+  // Render immediately from the data embedded by the host, then ask for a
+  // fresh copy (covers state changes between HTML build and script load).
+  try {
+    var initEl = g("initData");
+    var initial = initEl ? JSON.parse(initEl.textContent || "{}") : null;
+    if (initial && initial.type === "init") { applyInit(initial); }
+  } catch (err) {
+    console.error("Shai context editor: invalid init data", err);
+  }
 
   vscode.postMessage({ type: "getInit" });
 })();
