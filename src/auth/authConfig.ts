@@ -232,6 +232,23 @@ export const PROVIDER_LABELS: { id: string; label: string }[] = [
 ];
 
 export function getAuthConfigPath(): string {
+    // On Windows shai runs inside WSL: edit the config file it actually reads
+    // (\\wsl.localhost\<distro>\home\<user>\.config\shai\auth.config).
+    // Loaded lazily so this module stays importable without `vscode` (tests).
+    if (os.platform() === 'win32') {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const wsl = require('../platform/wsl') as typeof import('../platform/wsl');
+            if (wsl.shouldUseWSL()) {
+                const dir = wsl.getWSLShaiConfigDir();
+                if (dir) {
+                    return path.join(dir, 'auth.config');
+                }
+            }
+        } catch {
+            // fall back to the local path below
+        }
+    }
     const xdg = process.env.XDG_CONFIG_HOME;
     const dir = xdg ? path.join(xdg, 'shai') : path.join(os.homedir(), '.config', 'shai');
     return path.join(dir, 'auth.config');

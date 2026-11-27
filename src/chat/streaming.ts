@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import * as os from 'os';
+import { getShaiWorkingDir, getWorkspaceFolderPath, shouldUseWSL, wslCommand, windowsToWSLPath } from '../platform/wsl';
+
+// Re-exported for existing importers (views).
+export { getShaiWorkingDir, windowsToWSLPath };
 
 export interface StreamingResponse {
   id: string;
@@ -8,30 +12,6 @@ export interface StreamingResponse {
   data: string;
   timestamp: number;
   stage?: string;
-}
-
-/** Converts a Windows path (C:\foo) to its WSL form (/mnt/c/foo). Other paths only get '/' separators. */
-export function windowsToWSLPath(windowsPath: string): string {
-  let wslPath = windowsPath.replace(/\\/g, '/');
-  if (/^[A-Za-z]:/.test(wslPath)) {
-    const drive = wslPath[0].toLowerCase();
-    wslPath = `/mnt/${drive}${wslPath.substring(2)}`;
-  }
-  return wslPath;
-}
-
-/**
- * The directory shai runs in, expressed as shai sees it (same logic as the
- * CLI spawn below): the first workspace folder, converted to a WSL path when
- * shai is run through WSL from Windows.
- */
-export function getShaiWorkingDir(): string {
-  const config = vscode.workspace.getConfiguration('shai-vscode');
-  const useWSLConfig = config.get<boolean | null>('useWSL');
-  const platform = os.platform();
-  const useWSL = useWSLConfig !== null && useWSLConfig !== undefined ? useWSLConfig : platform === 'win32';
-  const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
-  return useWSL && platform === 'win32' ? windowsToWSLPath(workspaceFolder) : workspaceFolder;
 }
 
 /** Kinds of streaming/server failures that produce an actionable message. (Req 7.1-7.4) */
@@ -84,12 +64,9 @@ export class StreamingChatSession {
     const shaiCommand = config.get<string>('shaiCommand') || 'shai';
     const useServer = config.get<boolean>('useServer') || false;
     const serverUrl = config.get<string>('serverUrl') || 'http://127.0.0.1:8000';
-    const useWSLConfig = config.get<boolean | null>('useWSL');
     const platform = os.platform();
-      const useWSL: boolean = useWSLConfig !== null && useWSLConfig !== undefined
-        ? useWSLConfig
-        : platform === 'win32';
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
+    const useWSL = shouldUseWSL();
+    const workspaceFolder = getWorkspaceFolderPath();
     
     // Add context to format response with actionable buttons (unless user opted out)
     const contextualMessage = noExtraContext ? message : `${message}
@@ -123,9 +100,10 @@ Files and directories are NOT actions: always write them as markdown links with 
       }
       
       if (useWSL) {
-        cwd = platform === 'win32' ? this.windowsToWSLPath(workspaceFolder) : workspaceFolder;
-        command = 'wsl';
-        args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} --prompt ${StreamingChatSession.escapeShellArg(contextualMessage)}`];
+        cwd = getShaiWorkingDir();
+        // env vars set on the Windows side do not cross into WSL: export them in the shell
+        const autopilotPrefix = autopilot ? 'export SHAI_AUTOPILOT=1; ' : '';
+        ({ command, args } = wslCommand(`${autopilotPrefix}cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} --prompt ${StreamingChatSession.escapeShellArg(contextualMessage)}`));
       } else {
         cwd = workspaceFolder;
         command = shaiCommand;
@@ -348,8 +326,7 @@ Files and directories are NOT actions: always write them as markdown links with 
       let command = shaiCommand;
       let args: string[] = ['serve'];
       if (useWSL) {
-        command = 'wsl';
-        args = ['bash', '-c', `cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} serve`];
+        ({ command, args } = wslCommand(`cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} serve`));
       }
       // Never use shell mode to avoid special character interpretation
       const proc = spawn(command, args, {

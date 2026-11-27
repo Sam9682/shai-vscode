@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as os from 'os';
 import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
+import { shouldUseWSL, shaiPathToUri, windowsToWSLPath, wslCommand } from '../platform/wsl';
 import {
   ComposeFileInfo,
   ComposeServiceInfo,
@@ -45,12 +46,7 @@ export class DockerController implements IDockerController {
    * to false to run Docker natively on Windows.
    */
   private shouldUseWSL(): boolean {
-    const config = vscode.workspace.getConfiguration('shai-vscode');
-    const useWSLConfig = config.get<boolean | null>('useWSL');
-    if (useWSLConfig !== null && useWSLConfig !== undefined) {
-      return useWSLConfig;
-    }
-    return os.platform() === 'win32';
+    return shouldUseWSL();
   }
 
   /**
@@ -62,22 +58,7 @@ export class DockerController implements IDockerController {
    * 2. Standard Windows paths (C:\Users\foo) → /mnt/c/Users/foo
    */
   private windowsToWSLPath(windowsPath: string): string {
-    let wslPath = windowsPath.replace(/\\/g, '/');
-
-    // WSL UNC path: //wsl.localhost/<Distro>/rest/of/path → /rest/of/path
-    // Also handles //wsl$/<Distro>/... (older WSL1 format)
-    const wslUncMatch = wslPath.match(/^\/\/(wsl\.localhost|wsl\$)\/[^/]+(\/.*)$/);
-    if (wslUncMatch) {
-      return wslUncMatch[2];
-    }
-
-    // Standard drive letter path: C:/Users/foo → /mnt/c/Users/foo
-    if (/^[A-Za-z]:/.test(wslPath)) {
-      const drive = wslPath[0].toLowerCase();
-      wslPath = `/mnt/${drive}${wslPath.substring(2)}`;
-    }
-
-    return wslPath;
+    return windowsToWSLPath(windowsPath);
   }
 
   private static escapeShellArg(arg: string): string {
@@ -113,7 +94,8 @@ export class DockerController implements IDockerController {
       const wslDockerArgs = dockerArgs.map(a => a === resolvedFilePath ? wslFile : a);
       const fullCmd = `cd ${DockerController.escapeShellArg(wslCwd)} && docker ${wslDockerArgs.join(' ')}`;
 
-      return spawn('wsl', ['bash', '-c', fullCmd], {
+      const { command, args } = wslCommand(fullCmd);
+      return spawn(command, args, {
         shell: false,
       });
     }
@@ -165,7 +147,8 @@ export class DockerController implements IDockerController {
    */
   async parseComposeServices(filePath: string): Promise<ComposeServiceInfo[]> {
     try {
-      const fileUri = vscode.Uri.file(filePath);
+      // filePath is an fsPath; map it back to the workspace's scheme (remote/WSL aware)
+      const fileUri = shaiPathToUri(filePath);
       const content = (await vscode.workspace.fs.readFile(fileUri)).toString();
       return DockerController.extractServices(content);
     } catch {

@@ -2,7 +2,7 @@
   "name": "shai-vscode",
   "displayName": "Shai VS Code",
   "description": "Integrates Shai AI assistant directly into VS Code with shell command execution",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "readme": "README.md",
   "publisher": "shai-dev",
   "icon": "shai_icon_vscode.png",
@@ -28,6 +28,10 @@
     "onCommand:shai-vscode.openContextEditor"
   ],
   "main": "./out/extension.js",
+  "extensionKind": [
+    "workspace",
+    "ui"
+  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -123,6 +127,11 @@
           "default": null,
           "description": "Run Shai command in WSL bash environment. When null (default), automatically uses WSL on Windows and native shell on other platforms. Set to true/false to override."
         },
+        "shai-vscode.wslDistro": {
+          "type": "string",
+          "default": "",
+          "description": "WSL distribution used to run Shai on Windows (e.g. 'Ubuntu-24.04'). When empty, the distro of the WSL workspace is used, otherwise the default WSL distro."
+        },
         "shai-vscode.useServer": {
           "type": "boolean",
           "default": false,
@@ -141,7 +150,7 @@
     "watch": "npx tsc -watch -p ./",
     "test": "mocha --config .mocharc.json --node-option=no-warnings=MODULE_TYPELESS_PACKAGE_JSON",
     "package": "vsce package",
-    "deploy": "npm run compile && vsce package && cursor --install-extension shai-vscode-0.0.9.vsix"
+    "deploy": "npm run compile && vsce package && cursor --install-extension shai-vscode-0.1.0.vsix"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",

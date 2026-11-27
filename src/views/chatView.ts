@@ -3,6 +3,7 @@ import { ChatController } from '../chat/controller';
 import { ReasoningViewProvider } from './reasoningView';
 import { buildPrompt } from '../context/promptBuilder';
 import { getShaiWorkingDir } from '../chat/streaming';
+import { shaiPathToUri } from '../platform/wsl';
 import { PREDEFINED_CONTEXTS, ContextManager } from '../context/contextManager';
 
 /**
@@ -56,7 +57,7 @@ export async function openChatLink(url: unknown): Promise<void> {
     }
     const target = parseVscodeFileUrl(url);
     if (!target) { return; }
-    const uri = vscode.Uri.file(target.path);
+    const uri = shaiPathToUri(target.path);
     try {
         const stat = await vscode.workspace.fs.stat(uri);
         if (stat.type & vscode.FileType.Directory) {

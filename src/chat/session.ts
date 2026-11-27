@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import * as os from 'os';
+import { escapeShellArg, getShaiWorkingDir, getWorkspaceFolderPath, shouldUseWSL, wslCommand, windowsToWSLPath } from '../platform/wsl';
 
 export interface ChatMessage {
     id: string;
@@ -48,10 +49,9 @@ export class ChatSession {
         return new Promise((resolve) => {
             const config = vscode.workspace.getConfiguration('shai-vscode');
             const shaiCommand = config.get<string>('shaiCommand') || 'shai';
-            const useWSLConfig = config.get<boolean | null>('useWSL');
             const platform = os.platform();
-            const useWSL = useWSLConfig !== null ? useWSLConfig : platform === 'win32';
-            const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
+            const useWSL = shouldUseWSL();
+            const workspaceFolder = getWorkspaceFolderPath();
             
             let command: string;
             let args: string[];
@@ -70,11 +70,8 @@ export class ChatSession {
             }
             
             if (useWSL && platform === 'win32') {
-                cwd = this.windowsToWSLPath(workspaceFolder);
-                command = 'wsl';
-                // Properly escape the message for bash -c
-                const escapedMessage = message.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
-                args = ['bash', '-c', `cd "${cwd}" && ${shaiCommand} --prompt "${escapedMessage}"`];
+                cwd = getShaiWorkingDir();
+                ({ command, args } = wslCommand(`cd ${escapeShellArg(cwd)} && ${shaiCommand} --prompt ${escapeShellArg(message)}`));
             } else {
                 cwd = workspaceFolder;
                 command = shaiCommand;
@@ -125,12 +122,7 @@ export class ChatSession {
     }
 
     private windowsToWSLPath(windowsPath: string): string {
-        let wslPath = windowsPath.replace(/\\/g, '/');
-        if (/^[A-Za-z]:/.test(wslPath)) {
-            const drive = wslPath[0].toLowerCase();
-            wslPath = `/mnt/${drive}${wslPath.substring(2)}`;
-        }
-        return wslPath;
+        return windowsToWSLPath(windowsPath);
     }
 
     private stripAnsi(text: string): string {
