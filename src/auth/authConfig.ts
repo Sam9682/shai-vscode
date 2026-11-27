@@ -119,7 +119,7 @@ export const MODEL_HELP: Record<string, string> = {
     openrouter: 'Enter an OpenRouter model id, e.g. anthropic/claude-3.5-sonnet.',
     ollama: 'Enter the name of a model you have pulled locally, e.g. llama3.1.',
     ovhcloud:
-        'Choose a model from the list, or select "Other…" to enter a custom model identifier.',
+        'Choose a model from the list (loaded from the OVHcloud AI Endpoints API), or select "Other…" to enter a custom model identifier.',
     openai_compatible:
         'Enter the model identifier expected by your OpenAI-compatible provider, e.g. gpt-4o.',
 };
@@ -142,6 +142,84 @@ export const OVHCLOUD_MODEL_OPTIONS: string[] = [
     'Meta-Llama-3.1-70B-Instruct',
     'Mistral-Nemo-Instruct-2407',
 ];
+
+/** Default OVHcloud AI Endpoints base URL (OpenAI-compatible). */
+export const OVHCLOUD_DEFAULT_BASE_URL = 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1';
+
+/**
+ * Extract usable chat model ids from an OpenAI-compatible `/v1/models` payload
+ * returned by OVHcloud AI Endpoints. Non-chat models (speech, TTS, image,
+ * embeddings — reported with `context_length` 0 or embedding names) are dropped.
+ * Result is de-duplicated and sorted case-insensitively.
+ */
+export function parseOvhcloudModelList(payload: unknown): string[] {
+    const data = (payload as { data?: unknown })?.data;
+    if (!Array.isArray(data)) {
+        throw new Error('Unexpected response from OVHcloud models API.');
+    }
+    const ids = new Set<string>();
+    for (const item of data) {
+        if (!item || typeof item !== 'object') {
+            continue;
+        }
+        const m = item as { id?: unknown; context_length?: unknown };
+        if (typeof m.id !== 'string' || !m.id.trim()) {
+            continue;
+        }
+        if (typeof m.context_length === 'number' && m.context_length <= 0) {
+            continue;
+        }
+        if (/embed|^bge-/i.test(m.id)) {
+            continue;
+        }
+        ids.add(m.id.trim());
+    }
+    return [...ids].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+
+/**
+ * Fetch the model list from the OVHcloud AI Endpoints web API (`GET {baseUrl}/models`).
+ * The API key is optional (anonymous access is rate-limited but allowed).
+ */
+export function fetchOvhcloudModels(
+    baseUrl?: string,
+    apiKey?: string,
+    timeoutMs = 10000
+): Promise<string[]> {
+    const base = (baseUrl || '').trim() || OVHCLOUD_DEFAULT_BASE_URL;
+    let url: URL;
+    try {
+        url = new URL(base.replace(/\/+$/, '') + '/models');
+    } catch {
+        return Promise.reject(new Error(`Invalid OVH_BASE_URL: ${base}`));
+    }
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const client: typeof import('https') = url.protocol === 'http:' ? require('http') : require('https');
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (apiKey && apiKey.trim()) {
+        headers.Authorization = `Bearer ${apiKey.trim()}`;
+    }
+    return new Promise((resolve, reject) => {
+        const req = client.get(url, { headers, timeout: timeoutMs }, (res) => {
+            let body = '';
+            res.setEncoding('utf8');
+            res.on('data', (chunk: string) => (body += chunk));
+            res.on('end', () => {
+                if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+                    reject(new Error(`OVHcloud models API returned HTTP ${res.statusCode}.`));
+                    return;
+                }
+                try {
+                    resolve(parseOvhcloudModelList(JSON.parse(body)));
+                } catch (e) {
+                    reject(e instanceof Error ? e : new Error(String(e)));
+                }
+            });
+        });
+        req.on('timeout', () => req.destroy(new Error('OVHcloud models API timed out.')));
+        req.on('error', reject);
+    });
+}
 
 export const PROVIDER_LABELS: { id: string; label: string }[] = [
     { id: 'anthropic', label: 'Anthropic (Claude)' },

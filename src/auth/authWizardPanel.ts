@@ -9,6 +9,7 @@ import {
     PROVIDER_ENV_FIELDS,
     OVHCLOUD_MODEL_OPTIONS,
     MODEL_HELP,
+    fetchOvhcloudModels,
     type ProviderConfig,
 } from './authConfig';
 
@@ -41,8 +42,24 @@ export function openAuthWizard(_context: vscode.ExtensionContext): void {
             provider?: string;
             env_vars?: Record<string, string>;
             model?: string;
+            baseUrl?: string;
+            apiKey?: string;
+            requestId?: number;
         }) => {
             try {
+                if (msg.type === 'fetchOvhModels') {
+                    const requestId = msg.requestId;
+                    fetchOvhcloudModels(msg.baseUrl, msg.apiKey).then(
+                        (models) => {
+                            panel.webview.postMessage({ type: 'ovhModels', requestId, models });
+                        },
+                        (e: unknown) => {
+                            const m = e instanceof Error ? e.message : String(e);
+                            panel.webview.postMessage({ type: 'ovhModels', requestId, models: null, error: m });
+                        }
+                    );
+                    return;
+                }
                 if (msg.type === 'getInit') {
                     try {
                         panel.webview.postMessage({
@@ -319,8 +336,9 @@ function getWizardHtml(nonce: string, cspSource: string): string {
       min-height: 28px;
       height: 28px;
     }
-    #modelOvh { max-width: 420px; }
-    #modelOvhCustom { max-width: 420px; }
+    .ovh-row { display: flex; align-items: center; gap: 6px; max-width: 420px; }
+    .ovh-row select { flex: 1 1 auto; min-width: 0; }
+    #modelOvhCustom { max-width: 420px; margin-top: 6px; }
     #envFields .row:first-child label { margin-top: 0; }
   </style>
 </head>
@@ -349,8 +367,12 @@ function getWizardHtml(nonce: string, cspSource: string): string {
       <div class="row" id="modelRow">
         <label for="model" id="modelLabel">Model</label>
         <input type="text" id="model" placeholder="e.g. claude-sonnet-4-20250514" autocomplete="off" />
-        <select id="modelOvh" class="hidden"></select>
+        <div id="modelOvhRow" class="ovh-row hidden">
+          <select id="modelOvh"></select>
+          <button type="button" class="secondary icon-btn" id="btnOvhRefresh" title="Reload model list from OVHcloud AI Endpoints">⟳</button>
+        </div>
         <input type="text" id="modelOvhCustom" class="hidden" placeholder="Custom model ID" autocomplete="off" />
+        <div class="hint hidden" id="modelOvhStatus" aria-live="polite"></div>
         <div class="hint" id="modelHelp"></div>
       </div>
       <details class="cred-help">
@@ -374,6 +396,9 @@ function getWizardHtml(nonce: string, cspSource: string): string {
   const modelLabel = document.getElementById('modelLabel');
   const modelOvh = document.getElementById('modelOvh');
   const modelOvhCustom = document.getElementById('modelOvhCustom');
+  const modelOvhRow = document.getElementById('modelOvhRow');
+  const modelOvhStatus = document.getElementById('modelOvhStatus');
+  const btnOvhRefresh = document.getElementById('btnOvhRefresh');
   const modelHelp = document.getElementById('modelHelp');
   const btnNew = document.getElementById('btnNew');
   const msgErr = document.getElementById('msgErr');
@@ -381,6 +406,13 @@ function getWizardHtml(nonce: string, cspSource: string): string {
   const btnToggleNew = document.getElementById('btnToggleNew');
 
   var OVH_CUSTOM = '__custom__';
+  // OVHcloud live model list: request sequencing, cache key of the last
+  // successful fetch, and whether the current choice was made explicitly
+  // (by the user or by prefill) and must survive a list refresh.
+  var ovhReqId = 0;
+  var ovhFetchedKey = null;
+  var ovhPendingKey = null;
+  var ovhTouched = false;
   let state = { config: null, envFieldSchema: {}, providerOptions: [], ovhcloudModels: [], modelHelp: {} };
 
   // Mirror of getModelHelp in authConfig.ts: safe accessor, never undefined. (Req 2.1, 2.2)
@@ -431,6 +463,7 @@ function getWizardHtml(nonce: string, cspSource: string): string {
         if (modelOvh) modelOvh.value = OVH_CUSTOM;
         if (modelOvhCustom) modelOvhCustom.value = profile.model || '';
       }
+      ovhTouched = true;
       syncOvhCustom();
     } else {
       if (model) model.value = profile.model || '';
@@ -466,26 +499,81 @@ function getWizardHtml(nonce: string, cspSource: string): string {
     if (modelLabel) modelLabel.setAttribute('for', show ? 'modelOvhCustom' : 'modelOvh');
   }
 
+  function buildOvhOptions(list) {
+    modelOvh.innerHTML = '';
+    (list || []).forEach(function (mid) {
+      var o = document.createElement('option');
+      o.value = mid;
+      o.textContent = mid;
+      modelOvh.appendChild(o);
+    });
+    var oth = document.createElement('option');
+    oth.value = OVH_CUSTOM;
+    oth.textContent = 'Other…';
+    modelOvh.appendChild(oth);
+  }
+
+  function setOvhStatus(text) {
+    if (!modelOvhStatus) return;
+    modelOvhStatus.textContent = text || '';
+    modelOvhStatus.classList.toggle('hidden', !text);
+  }
+
+  function readEnvInput(key) {
+    var el = document.getElementById('env_' + key);
+    return el ? (el.value || '').trim() : '';
+  }
+
+  // Ask the extension host to fetch the model list from the OVHcloud AI
+  // Endpoints API. Skipped when the same base URL / key was already fetched
+  // successfully, unless forced (refresh button).
+  function requestOvhModels(force) {
+    if (!newProvider || newProvider.value !== 'ovhcloud') return;
+    var baseUrl = readEnvInput('OVH_BASE_URL');
+    var apiKey = readEnvInput('OVH_API_KEY');
+    var key = baseUrl + '\\n' + apiKey;
+    if (!force && ovhFetchedKey === key) return;
+    ovhReqId += 1;
+    setOvhStatus('Loading models from OVHcloud AI Endpoints…');
+    if (btnOvhRefresh) btnOvhRefresh.disabled = true;
+    ovhPendingKey = key;
+    vscode.postMessage({ type: 'fetchOvhModels', requestId: ovhReqId, baseUrl: baseUrl, apiKey: apiKey });
+  }
+
+  // Replace the dropdown options with a freshly fetched list, keeping the
+  // current choice when it was explicit (custom ids stay under "Other…").
+  function applyOvhModels(list) {
+    if (!modelOvh) return;
+    var wasCustom = ovhTouched && modelOvh.value === OVH_CUSTOM;
+    var current = '';
+    if (ovhTouched) {
+      current = wasCustom ? (modelOvhCustom.value || '').trim() : modelOvh.value;
+    }
+    buildOvhOptions(list);
+    if (current && list.indexOf(current) !== -1) {
+      modelOvh.value = current;
+      if (modelOvhCustom) modelOvhCustom.value = '';
+    } else if (current || wasCustom) {
+      modelOvh.value = OVH_CUSTOM;
+      if (modelOvhCustom) modelOvhCustom.value = current;
+    } else {
+      modelOvh.selectedIndex = 0;
+    }
+    syncOvhCustom();
+  }
+
   function renderModelControls(providerId) {
     var isOvh = providerId === 'ovhcloud';
     if (model) model.classList.toggle('hidden', isOvh);
+    if (modelOvhRow) modelOvhRow.classList.toggle('hidden', !isOvh);
     if (modelOvh) {
-      modelOvh.classList.toggle('hidden', !isOvh);
       if (isOvh) {
-        modelOvh.innerHTML = '';
-        (state.ovhcloudModels || []).forEach(function (mid) {
-          var o = document.createElement('option');
-          o.value = mid;
-          o.textContent = mid;
-          modelOvh.appendChild(o);
-        });
-        var oth = document.createElement('option');
-        oth.value = OVH_CUSTOM;
-        oth.textContent = 'Other…';
-        modelOvh.appendChild(oth);
+        buildOvhOptions(state.ovhcloudModels);
         modelOvh.selectedIndex = 0;
+        ovhTouched = false;
       }
     }
+    if (!isOvh) setOvhStatus('');
     if (modelOvhCustom) {
       if (!isOvh) {
         modelOvhCustom.classList.add('hidden');
@@ -497,6 +585,11 @@ function getWizardHtml(nonce: string, cspSource: string): string {
     if (modelLabel) modelLabel.setAttribute('for', isOvh ? 'modelOvh' : 'model');
     // Per-provider model guidance, updated on every provider change. (Req 2.1, 2.2)
     if (modelHelp) modelHelp.textContent = getModelHelp(providerId);
+    // Live model list from the OVHcloud AI Endpoints API (async; the static
+    // fallback list stays in place until the response arrives).
+    if (isOvh && newProfileBody && !newProfileBody.classList.contains('hidden')) {
+      requestOvhModels(false);
+    }
   }
 
   function getModelValue() {
@@ -656,8 +749,23 @@ function getWizardHtml(nonce: string, cspSource: string): string {
   }
 
   if (modelOvh) {
-    modelOvh.addEventListener('change', syncOvhCustom);
+    modelOvh.addEventListener('change', function () {
+      ovhTouched = true;
+      syncOvhCustom();
+    });
   }
+  if (btnOvhRefresh) {
+    btnOvhRefresh.addEventListener('click', function () {
+      requestOvhModels(true);
+    });
+  }
+  // Re-fetch the OVHcloud model list when the endpoint or key changes.
+  envFields.addEventListener('change', function (ev) {
+    var t = ev.target;
+    if (t && (t.id === 'env_OVH_BASE_URL' || t.id === 'env_OVH_API_KEY')) {
+      requestOvhModels(false);
+    }
+  });
 
   btnToggleNew.addEventListener('click', function () {
     newProfileBody.classList.toggle('hidden');
@@ -693,6 +801,21 @@ function getWizardHtml(nonce: string, cspSource: string): string {
         clearNewForm();
         newProfileBody.classList.add('hidden');
         updateToggleBtn();
+      }
+    }
+    if (m.type === 'ovhModels') {
+      if (m.requestId !== ovhReqId) return; // stale response
+      if (btnOvhRefresh) btnOvhRefresh.disabled = false;
+      if (Array.isArray(m.models) && m.models.length > 0) {
+        state.ovhcloudModels = m.models;
+        ovhFetchedKey = ovhPendingKey;
+        if (newProvider.value === 'ovhcloud') {
+          applyOvhModels(m.models);
+          setOvhStatus(m.models.length + ' models loaded from OVHcloud AI Endpoints.');
+        }
+      } else if (newProvider.value === 'ovhcloud') {
+        setOvhStatus('Could not load the model list from OVHcloud' +
+          (m.error ? ' (' + m.error + ')' : '') + '. Showing the default list; use "Other…" for any model.');
       }
     }
     if (m.type === 'error') {
