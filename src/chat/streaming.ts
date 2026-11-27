@@ -41,10 +41,73 @@ export function describeStreamingError(kind: StreamErrorKind, ctx: StreamErrorCo
   }
 }
 
+/** Raised (as a rejection) when the user interrupts a running request with STOP. */
+export class ShaiStoppedError extends Error {
+  constructor() {
+    super('Stopped by user');
+    this.name = 'ShaiStoppedError';
+  }
+}
+
 export class StreamingChatSession {
   private messages: any[] = [];
   private static serverProcess: import('child_process').ChildProcess | null = null;
-  
+  /** Handle on the in-flight request, used by stop(). */
+  private current: {
+    child?: import('child_process').ChildProcess;
+    pidFile?: string;
+    abort?: AbortController;
+    stopped: boolean;
+  } | null = null;
+
+  /** True while a request is in flight for this tab. */
+  isRunning(): boolean {
+    return this.current !== null;
+  }
+
+  /**
+   * Interrupt the running request, like pressing Ctrl+C in the shai CLI:
+   * SIGINT first, then a hard kill if shai has not exited after 3 s.
+   * In server mode the HTTP request is aborted instead.
+   */
+  stop(): boolean {
+    const cur = this.current;
+    if (!cur || cur.stopped) { return false; }
+    cur.stopped = true;
+
+    if (cur.abort) {
+      cur.abort.abort();
+      return true;
+    }
+    const child = cur.child;
+    if (!child) { return true; }
+
+    if (cur.pidFile) {
+      // shai runs inside WSL: signalling wsl.exe from Windows would only kill
+      // the bridge, so deliver SIGINT to the Linux process through its PID file.
+      const f = StreamingChatSession.escapeShellArg(cur.pidFile);
+      const { command, args } = wslCommand(`[ -f ${f} ] && kill -INT "$(cat ${f})" 2>/dev/null; true`);
+      try { spawn(command, args, { shell: false, stdio: 'ignore' }); } catch { /* ignore */ }
+    } else if (os.platform() !== 'win32') {
+      child.kill('SIGINT');
+    } else {
+      // Windows has no SIGINT for child processes: terminate directly.
+      child.kill();
+    }
+
+    setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) {
+        if (cur.pidFile) {
+          const f = StreamingChatSession.escapeShellArg(cur.pidFile);
+          const { command, args } = wslCommand(`[ -f ${f} ] && kill -KILL "$(cat ${f})" 2>/dev/null; rm -f ${f}; true`);
+          try { spawn(command, args, { shell: false, stdio: 'ignore' }); } catch { /* ignore */ }
+        }
+        child.kill('SIGKILL');
+      }
+    }, 3000);
+    return true;
+  }
+
   constructor(
     public readonly tabId: string,
     private context: vscode.ExtensionContext
@@ -82,7 +145,8 @@ Files and directories are NOT actions: always write them as markdown links with 
     let args: string[];
     let cwd: string;
     let env: NodeJS.ProcessEnv;
-      
+    let pidFile: string | undefined;
+
       // On macOS, we need to ensure proper PATH for finding shai command
       if (platform === 'darwin') {
         // Create a more complete environment with standard PATH locations
@@ -103,7 +167,11 @@ Files and directories are NOT actions: always write them as markdown links with 
         cwd = getShaiWorkingDir();
         // env vars set on the Windows side do not cross into WSL: export them in the shell
         const autopilotPrefix = autopilot ? 'export SHAI_AUTOPILOT=1; ' : '';
-        ({ command, args } = wslCommand(`${autopilotPrefix}cd ${StreamingChatSession.escapeShellArg(cwd)} && ${StreamingChatSession.escapeShellArg(shaiCommand)} --prompt ${StreamingChatSession.escapeShellArg(contextualMessage)}`));
+        // `exec` makes shai replace the shell, so $$ is shai's own PID: stop()
+        // reads it back from this file to send SIGINT inside WSL.
+        pidFile = `/tmp/shai-vscode-${this.generateId()}.pid`;
+        const pf = StreamingChatSession.escapeShellArg(pidFile);
+        ({ command, args } = wslCommand(`${autopilotPrefix}cd ${StreamingChatSession.escapeShellArg(cwd)} && echo $$ > ${pf} && exec ${StreamingChatSession.escapeShellArg(shaiCommand)} --prompt ${StreamingChatSession.escapeShellArg(contextualMessage)}`));
       } else {
         cwd = workspaceFolder;
         command = shaiCommand;
@@ -118,26 +186,46 @@ Files and directories are NOT actions: always write them as markdown links with 
       // spawn the server once and wait briefly for it to bind
       await StreamingChatSession.ensureServerRunning(shaiCommand, useWSL, cwd, env);
       // perform the POST and stream response events
-      return this.callServer(contextualMessage, serverUrl, onProgress, interactionMode);
+      const abort = new AbortController();
+      const cur = { abort, stopped: false };
+      this.current = cur;
+      try {
+        return await this.callServer(contextualMessage, serverUrl, onProgress, interactionMode, abort.signal);
+      } catch (err) {
+        if (cur.stopped) { throw new ShaiStoppedError(); }
+        throw err;
+      } finally {
+        if (this.current === cur) { this.current = null; }
+      }
     }
 
     // --- original CLI path ------------------------------------------------
     return new Promise((resolve, reject) => {
       console.log('Spawning CLI child', command, args, 'cwd', cwd);
       // Never use shell mode to avoid special character interpretation
-      const child = spawn(command, args, { 
+      const child = spawn(command, args, {
         cwd: useWSL ? undefined : cwd,
         shell: false,
         env: env,
         stdio: ['pipe', 'pipe', 'pipe']
       });
       child.stdin.end();
+      const cur = { child, pidFile, stopped: false };
+      this.current = cur;
+      const finish = () => {
+        if (this.current === cur) { this.current = null; }
+        if (pidFile) {
+          const { command: c, args: a } = wslCommand(`rm -f ${StreamingChatSession.escapeShellArg(pidFile)}`);
+          try { spawn(c, a, { shell: false, stdio: 'ignore' }); } catch { /* ignore */ }
+        }
+      };
 
       let stdout = '';
       let stderr = '';
 
 
       const timeout = setTimeout(() => {
+        finish();
         child.kill();
         onProgress({
           id: this.generateId(),
@@ -178,6 +266,11 @@ Files and directories are NOT actions: always write them as markdown links with 
 
       child.on('close', () => {
         clearTimeout(timeout);
+        finish();
+        if (cur.stopped) {
+          reject(new ShaiStoppedError());
+          return;
+        }
         // Use stdout for the final chat answer; stderr (which typically
         // contains thinking / model-info) was already streamed to the
         // reasoning panel.  Fall back to stderr only when stdout is empty.
@@ -194,6 +287,11 @@ Files and directories are NOT actions: always write them as markdown links with 
 
       child.on('error', (error) => {
         clearTimeout(timeout);
+        finish();
+        if (cur.stopped) {
+          reject(new ShaiStoppedError());
+          return;
+        }
         onProgress({
           id: this.generateId(),
           type: 'error',
@@ -233,12 +331,14 @@ Files and directories are NOT actions: always write them as markdown links with 
     message: string,
     serverUrl: string,
     onProgress: (progress: StreamingResponse) => void,
-    interactionMode: string = 'none'
+    interactionMode: string = 'none',
+    signal?: AbortSignal
   ): Promise<string> {
     let stdout = '';
     let res: Response;
     try {
       res = await fetch(`${serverUrl}/ask`, {
+        signal,
         method: 'POST',
         headers: { 
             'Content-Type': 'text/plain',
@@ -247,6 +347,7 @@ Files and directories are NOT actions: always write them as markdown links with 
         body: message
       });
     } catch (err: any) {
+      if (signal?.aborted) { throw err; }
       onProgress({
         id: this.generateId(),
         type: 'error',
@@ -299,6 +400,7 @@ Files and directories are NOT actions: always write them as markdown links with 
       });
       return stdout;
     } catch (err: any) {
+      if (signal?.aborted) { throw err; }
       const msg = err.message || String(err);
       onProgress({
         id: this.generateId(),

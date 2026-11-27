@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { ChatController } from '../chat/controller';
 import { ReasoningViewProvider } from './reasoningView';
 import { buildPrompt } from '../context/promptBuilder';
-import { getShaiWorkingDir } from '../chat/streaming';
+import { getShaiWorkingDir, ShaiStoppedError } from '../chat/streaming';
 import { shaiPathToUri } from '../platform/wsl';
 import { PREDEFINED_CONTEXTS, ContextManager } from '../context/contextManager';
 
@@ -192,6 +192,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                         this.handleClearForTab(webview, tabId);
                         break;
                     }
+                    case 'stop': {
+                        const tabId = message.tabId || this._displayedContextId;
+                        if (!this.controller.getStreamingSession(tabId).stop()) {
+                            // Nothing running any more: just reset the button.
+                            webview.postMessage({ type: 'stopped' });
+                        }
+                        break;
+                    }
                     case 'switchTab': {
                         const tabId = message.tabId;
                         if (tabId) {
@@ -264,6 +272,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     break;
                 case 'clear':
                     provider.handleClear(panel.webview);
+                    break;
+                case 'stop':
+                    if (!chatController.getStreamingSession(provider._displayedContextId).stop()) {
+                        panel.webview.postMessage({ type: 'stopped' });
+                    }
                     break;
                 case 'ready':
                     provider.restoreHistory(panel.webview);
@@ -402,6 +415,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             // The 'complete' callback above already sent the final answer to
             // the chat panel, so nothing else to do here.
         } catch (err: any) {
+            if (err instanceof ShaiStoppedError) {
+                webview.postMessage({ type: 'stopped' });
+                return;
+            }
             webview.postMessage({ type: 'error', data: err?.message || String(err) });
         }
     }
@@ -539,6 +556,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             }
             await this.controller.getStreamingSession(tabId).executeCommandWithStreaming(enrichedMessage, onProgress, this.controller.getInteractionMode(tabId), noExtraContext, autopilot);
         } catch (err: any) {
+            if (err instanceof ShaiStoppedError) {
+                webview.postMessage({ type: 'stopped' });
+                return;
+            }
             webview.postMessage({ type: 'error', data: err?.message || String(err) });
         }
     }
@@ -619,6 +640,48 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     .streaming-status-failed { color: var(--vscode-errorForeground, #f48771); }
     .option-row { display: flex; align-items: center; gap: 12px; font-size: 12px; }
     .checkbox-label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
+
+    /* ---- Composer: the bordered prompt area ---- */
+    .composer { --accent: var(--vscode-focusBorder, #007acc); --stop: #d14545;
+        display: flex; flex-direction: column; border: 1.5px solid var(--accent); border-radius: 8px;
+        background: var(--vscode-input-background, #1e1e1e); overflow: hidden; transition: border-color .2s, box-shadow .2s; }
+    .composer:focus-within { box-shadow: 0 0 0 1px var(--accent); }
+    .composer textarea { border: none; outline: none; background: transparent; color: var(--vscode-input-foreground, inherit);
+        min-height: 4lh; resize: none; padding: 10px 12px; }
+    .composer textarea::placeholder { color: var(--vscode-input-placeholderForeground, #888); }
+    .composer-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 8px;
+        border-top: 1px solid var(--vscode-widget-border, rgba(128,128,128,.35)); }
+    .composer-toolbar .spacer { flex: 1; }
+    .composer-toolbar .context-selector { margin-left: 0; }
+    .composer button.icon-btn { min-width: 0; width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center;
+        justify-content: center; border-radius: 6px; background: transparent; color: var(--vscode-foreground); }
+    .composer button.icon-btn:hover { background: var(--vscode-toolbar-hoverBackground, rgba(128,128,128,.2)); }
+    .composer svg { width: 16px; height: 16px; display: block; }
+    /* Send / Stop button */
+    .composer button.send-btn { position: relative; min-width: 0; width: 32px; height: 32px; padding: 0; border-radius: 8px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: var(--vscode-button-background, #007acc); color: var(--vscode-button-foreground, #fff); }
+    .composer button.send-btn:hover { background: var(--vscode-button-hoverBackground, #005a9e); }
+    .composer button.send-btn.empty { opacity: .45; }
+    .send-btn .icon-stop { display: none; }
+    .send-btn.running .icon-send { display: none; }
+    .send-btn.running .icon-stop { display: block; }
+    .composer button.send-btn.running { background: var(--stop); opacity: 1; }
+    .composer button.send-btn.running:hover { background: #a03838; }
+    /* Spinning ring around the STOP button: something is in progress */
+    .send-btn.running::after { content: ''; position: absolute; inset: -4px; border-radius: 11px;
+        border: 2px solid transparent; border-top-color: var(--stop); border-right-color: var(--stop);
+        animation: shai-spin .9s linear infinite; pointer-events: none; }
+    .composer.busy { --accent: var(--stop); animation: shai-pulse 1.6s ease-in-out infinite; }
+    .busy-label { display: none; align-items: center; gap: 6px; font-size: 12px; color: var(--vscode-descriptionForeground, #999); }
+    .composer.busy .busy-label { display: inline-flex; }
+    .busy-label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--stop); animation: shai-blink 1s ease-in-out infinite; }
+    @keyframes shai-spin { to { transform: rotate(360deg); } }
+    @keyframes shai-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(209,69,69,.0); } 50% { box-shadow: 0 0 0 3px rgba(209,69,69,.35); } }
+    @keyframes shai-blink { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) {
+        .send-btn.running::after, .composer.busy, .busy-label .dot { animation: none; }
+    }
 </style>
 </head>
 <body>
@@ -626,21 +689,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 <div class="chat-body">
 <div class="messages" id="messages"></div>
 <div class="controls">
-    <textarea id="prompt" placeholder="type your prompt..."></textarea>
-    <div class="button-row">
-        <button id="send">Send</button>
-        <button id="clear" class="secondary">Clear</button>
-        <label for="context-selector" style="margin-right: 8px;">Context:</label>
-        <select id="context-selector" class="context-selector" title="Select active context">
-            <option value="default">Default</option>
-        </select>
-    </div>
-    <div class="status-row">
-        <span id="streaming-status" class="streaming-status streaming-status-idle" role="status" aria-live="polite"></span>
+    <div class="composer" id="composer">
+        <textarea id="prompt" placeholder="Ask shai… (Enter to send, Shift+Enter for a new line)"></textarea>
+        <div class="composer-toolbar">
+            <button id="clear" class="icon-btn" title="Clear conversation" aria-label="Clear conversation">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.8 6.5v4.5M9.2 6.5v4.5"/></svg>
+            </button>
+            <select id="context-selector" class="context-selector" title="Select active context">
+                <option value="default">Default</option>
+            </select>
+            <span class="spacer"></span>
+            <span class="busy-label" title="Press Esc or the STOP button to interrupt"><span class="dot"></span><span id="busy-text">shai is working…</span></span>
+            <button id="send" class="send-btn empty" title="Send (Enter)" aria-label="Send">
+                <svg class="icon-send" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg>
+                <svg class="icon-stop" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.2" fill="currentColor"/></svg>
+            </button>
+        </div>
     </div>
     <div class="option-row">
         <label class="checkbox-label"><input type="checkbox" id="no-extra-context" checked /> No extra context</label>
         <label class="checkbox-label"><input type="checkbox" id="autopilot" checked /> Autopilot</label>
+        <span class="spacer" style="flex:1"></span>
+        <span id="streaming-status" class="streaming-status streaming-status-idle" role="status" aria-live="polite"></span>
     </div>
 </div>
 </div>
@@ -970,27 +1040,46 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Track whether we're currently streaming a message to prevent duplicates
     let isStreaming = false;
 
+    const composer = document.getElementById('composer');
+    const busyText = document.getElementById('busy-text');
+    let isRunning = false;
+    let runStartedAt = 0;
+    let runTimer = null;
+
+    // Toggle the composer between "send" (arrow) and "running" (STOP square +
+    // spinning ring + pulsing border + elapsed time).
     function setProcessing(active) {
+        isRunning = !!active;
+        if (runTimer) { clearInterval(runTimer); runTimer = null; }
+        if (composer) { composer.classList.toggle('busy', isRunning); }
         if (sendBtn) {
-            if (active) {
-                sendBtn.disabled = true;
-                sendBtn.textContent = 'Processing';
-                sendBtn.classList.add('processing'); // Add processing class for red color
-                let dotCount = 0;
-                sendBtn._processingInterval = setInterval(() => {
-                    dotCount = (dotCount + 1) % 4;
-                    sendBtn.textContent = 'Processing' + '.'.repeat(dotCount);
-                }, 400);
-            } else {
-                if (sendBtn._processingInterval) {
-                    clearInterval(sendBtn._processingInterval);
-                    sendBtn._processingInterval = null;
-                }
-                sendBtn.textContent = 'Send';
-                sendBtn.disabled = false;
-                sendBtn.classList.remove('processing'); // Remove processing class
-            }
+            sendBtn.classList.toggle('running', isRunning);
+            sendBtn.title = isRunning ? 'Stop (Esc) – interrupt shai like Ctrl+C' : 'Send (Enter)';
+            sendBtn.setAttribute('aria-label', isRunning ? 'Stop' : 'Send');
         }
+        if (isRunning) {
+            runStartedAt = Date.now();
+            const tick = () => {
+                if (busyText) {
+                    busyText.textContent = 'shai is working… ' + Math.floor((Date.now() - runStartedAt) / 1000) + 's';
+                }
+            };
+            tick();
+            runTimer = setInterval(tick, 1000);
+        }
+        updateEmptyState();
+    }
+
+    function updateEmptyState() {
+        if (sendBtn) {
+            sendBtn.classList.toggle('empty', !isRunning && !(prompt.value || '').trim());
+        }
+    }
+
+    function requestStop() {
+        if (!isRunning) { return; }
+        if (busyText) { busyText.textContent = 'Stopping…'; }
+        vscode.postMessage({ type: 'stop', tabId: activeTabId });
     }
 
     // --- Streaming status indicator (Req 5.1-5.6) ---
@@ -1022,9 +1111,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             streamingStatus.textContent = STREAM_LABELS[streamState] || '';
             streamingStatus.className = 'streaming-status streaming-status-' + streamState;
         }
-        if (sendBtn) {
-            sendBtn.disabled = !sendEnabled(streamState);
-        }
+        // The button stays clickable while running: it acts as STOP then.
     }
 
     // Apply a streaming event: advance the state machine, then layer the
@@ -1073,8 +1160,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    // Handle SEND button click
-    sendBtn?.addEventListener('click', () => {
+    function submitPrompt() {
+        if (isRunning || !sendEnabled(streamState)) return;
         const value = (prompt.value || '').trim();
         if (!value) return;
         appendMessage(value, 'user');
@@ -1085,24 +1172,24 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         lastAssistantEl = null;
         lastReceivedMessage = '';
         isStreaming = true;
+    }
+
+    // SEND button doubles as STOP while shai is running
+    sendBtn?.addEventListener('click', () => {
+        if (isRunning) { requestStop(); } else { submitPrompt(); }
     });
 
-    // Handle ENTER key press in textarea
+    // ENTER sends, ESC interrupts a running request
     prompt?.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault(); // Prevent default new line behavior
-            const value = (prompt.value || '').trim();
-            if (!value) return;
-            appendMessage(value, 'user');
-            vscode.postMessage({ type: 'chat-prompt', message: value, tabId: activeTabId, noExtraContext: noExtraContextCb?.checked || false, autopilot: autopilotCb?.checked || false });
-            prompt.value = '';
-            setProcessing(true);
-            applyStreamEvent('submit');
-            lastAssistantEl = null;
-            lastReceivedMessage = '';
-            isStreaming = true;
+            submitPrompt();
+        } else if (event.key === 'Escape' && isRunning) {
+            event.preventDefault();
+            requestStop();
         }
     });
+    prompt?.addEventListener('input', updateEmptyState);
 
     clearBtn?.addEventListener('click', () => {
         messages.innerHTML = '';
@@ -1216,6 +1303,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             
             // Play completion sound even on error
             playCompletionSound();
+        } else if (msg.type === 'stopped') {
+            if (isRunning) {
+                const el = appendMessage('', 'assistant');
+                setMessageContent(el, '<em>⏹ Interrupted by user.</em>');
+            }
+            lastAssistantEl = null;
+            accumulatedText = '';
+            setProcessing(false);
+            streamState = 'idle';
+            renderStreamingStatus();
+            if (streamingStatus) {
+                streamingStatus.textContent = 'Stopped';
+                streamingStatus.className = 'streaming-status streaming-status-failed';
+            }
         } else if (msg.type === 'clear') {
             messages.innerHTML = '';
             lastAssistantEl = null;
