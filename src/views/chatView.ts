@@ -5,6 +5,78 @@ import { buildPrompt } from '../context/promptBuilder';
 import { getShaiWorkingDir, ShaiStoppedError } from '../chat/streaming';
 import { shaiPathToUri } from '../platform/wsl';
 import { PREDEFINED_CONTEXTS, ContextManager } from '../context/contextManager';
+import { resolveAttachments, buildAttachmentNote, buildAttachmentBlock } from '../chat/attachments';
+
+/** Keeps only string URIs from an untrusted webview payload. */
+function asUriList(value: unknown): string[] {
+    return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.length > 0) : [];
+}
+
+/** Sends the picked files back to the webview as attachment chips. */
+function postAttachments(webview: vscode.Webview, uris: vscode.Uri[]): void {
+    if (uris.length === 0) { return; }
+    webview.postMessage({
+        type: 'attachmentsAdded',
+        files: uris.map(u => ({ uri: u.toString(), name: u.path.split('/').pop() || u.path })),
+    });
+}
+
+/**
+ * Handles the attachment-related webview messages ("+" menu and drag & drop).
+ * Returns true when the message was one of them.
+ */
+export async function handleAttachmentMessage(message: any, webview: vscode.Webview): Promise<boolean> {
+    switch (message?.type) {
+        case 'pickFiles': {
+            const picked = await vscode.window.showOpenDialog({
+                canSelectMany: true,
+                canSelectFiles: true,
+                canSelectFolders: false,
+                openLabel: 'Attach',
+                title: 'Attach files to your Shai request',
+                defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri,
+            });
+            postAttachments(webview, picked ?? []);
+            return true;
+        }
+        case 'addActiveFile': {
+            const uri = vscode.window.activeTextEditor?.document.uri
+                ?? vscode.window.visibleTextEditors[0]?.document.uri;
+            if (uri && uri.scheme !== 'untitled') {
+                postAttachments(webview, [uri]);
+            } else {
+                void vscode.window.showInformationMessage('No saved file is open in the editor.');
+            }
+            return true;
+        }
+        case 'addOpenEditors': {
+            const uris: vscode.Uri[] = [];
+            for (const group of vscode.window.tabGroups.all) {
+                for (const tab of group.tabs) {
+                    const input = tab.input;
+                    if (input instanceof vscode.TabInputText && input.uri.scheme !== 'untitled'
+                        && !uris.some(u => u.toString() === input.uri.toString())) {
+                        uris.push(input.uri);
+                    }
+                }
+            }
+            if (uris.length === 0) {
+                void vscode.window.showInformationMessage('No open editors to attach.');
+            }
+            postAttachments(webview, uris);
+            return true;
+        }
+        case 'dropUris': {
+            const uris: vscode.Uri[] = [];
+            for (const raw of asUriList(message.uris)) {
+                try { uris.push(vscode.Uri.parse(raw, true)); } catch { /* ignore */ }
+            }
+            postAttachments(webview, uris);
+            return true;
+        }
+    }
+    return false;
+}
 
 /**
  * Host-side scheme validation for link-open requests, mirroring the webview gate.
@@ -178,13 +250,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             try {
                 if (!this._view) return;
                 const webview = this._view.webview;
+                if (await handleAttachmentMessage(message, webview)) return;
                 switch (message.type) {
                     case 'chat-prompt': {
                         const text: string = message.message || '';
-                        if (!text.trim()) return;
+                        const attachments = asUriList(message.attachments);
+                        if (!text.trim() && attachments.length === 0) return;
                         const tabId = message.tabId || this._displayedContextId;
                         webview.postMessage({ type: 'clearStreaming' });
-                        this.handleChatPromptForTab(text, webview, tabId, message.noExtraContext || false, message.autopilot || false);
+                        this.handleChatPromptForTab(text, webview, tabId, message.noExtraContext || false, message.autopilot || false, attachments);
                         break;
                     }
                     case 'clear': {
@@ -266,9 +340,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const provider = new ChatViewProvider(extensionUri, chatController);
         panel.webview.html = provider.getHtmlContent(panel.webview);
         panel.webview.onDidReceiveMessage(async (data) => {
+            if (await handleAttachmentMessage(data, panel.webview)) { return; }
             switch (data.type) {
                 case 'chat-prompt':
-                    await provider.handleChatPrompt(data.message, panel.webview, data.noExtraContext || false, data.autopilot || false);
+                    await provider.handleChatPrompt(data.message || '', panel.webview, data.noExtraContext || false, data.autopilot || false, asUriList(data.attachments));
                     break;
                 case 'clear':
                     provider.handleClear(panel.webview);
@@ -311,9 +386,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return panel;
     }
 
-    private async handleChatPrompt(message: string, webview: vscode.Webview, noExtraContext: boolean = false, autopilot: boolean = false) {
+    private async handleChatPrompt(message: string, webview: vscode.Webview, noExtraContext: boolean = false, autopilot: boolean = false, attachmentUris: string[] = []) {
         const tabId = this._displayedContextId;
-        const cleanMessage = message;
+        const attachments = await resolveAttachments(attachmentUris);
+        const attachmentBlock = buildAttachmentBlock(attachments);
+        const cleanMessage = (message.trim() || 'Please look at the attached file(s).') + buildAttachmentNote(attachments);
 
         // Build context-enriched prompt (includes systemPrompt if set)
         const contextManager = this.controller.getContextManager(tabId);
@@ -410,8 +487,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             if (ReasoningViewProvider.currentProvider) {
                 ReasoningViewProvider.currentProvider.clearReasoning();
             }
-            // Pass the context-enriched prompt to shai
-            await this.controller.getStreamingSession(tabId).executeCommandWithStreaming(enrichedMessage, onProgress, this.controller.getInteractionMode(tabId), noExtraContext, autopilot);
+            // Pass the context-enriched prompt (and attached files) to shai
+            await this.controller.getStreamingSession(tabId).executeCommandWithStreaming(enrichedMessage, onProgress, this.controller.getInteractionMode(tabId), noExtraContext, autopilot, attachmentBlock);
             // The 'complete' callback above already sent the final answer to
             // the chat panel, so nothing else to do here.
         } catch (err: any) {
@@ -474,8 +551,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Tab-specific helpers (used by standalone panels with their own tabId)
     // ------------------------------------------------------------------
 
-    private async handleChatPromptForTab(message: string, webview: vscode.Webview, tabId: string, noExtraContext: boolean = false, autopilot: boolean = false) {
-        const cleanMessage = message;
+    private async handleChatPromptForTab(message: string, webview: vscode.Webview, tabId: string, noExtraContext: boolean = false, autopilot: boolean = false, attachmentUris: string[] = []) {
+        const attachments = await resolveAttachments(attachmentUris);
+        const attachmentBlock = buildAttachmentBlock(attachments);
+        const cleanMessage = (message.trim() || 'Please look at the attached file(s).') + buildAttachmentNote(attachments);
         const contextManager = this.controller.getContextManager(tabId);
         const enrichedMessage = noExtraContext
             ? cleanMessage
@@ -554,7 +633,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             if (ReasoningViewProvider.currentProvider) {
                 ReasoningViewProvider.currentProvider.clearReasoning();
             }
-            await this.controller.getStreamingSession(tabId).executeCommandWithStreaming(enrichedMessage, onProgress, this.controller.getInteractionMode(tabId), noExtraContext, autopilot);
+            await this.controller.getStreamingSession(tabId).executeCommandWithStreaming(enrichedMessage, onProgress, this.controller.getInteractionMode(tabId), noExtraContext, autopilot, attachmentBlock);
         } catch (err: any) {
             if (err instanceof ShaiStoppedError) {
                 webview.postMessage({ type: 'stopped' });
@@ -644,8 +723,31 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     /* ---- Composer: the bordered prompt area ---- */
     .composer { --accent: var(--vscode-focusBorder, #007acc); --stop: #d14545;
         display: flex; flex-direction: column; border: 1.5px solid var(--accent); border-radius: 8px;
-        background: var(--vscode-input-background, #1e1e1e); overflow: hidden; transition: border-color .2s, box-shadow .2s; }
+        background: var(--vscode-input-background, #1e1e1e); position: relative; transition: border-color .2s, box-shadow .2s; }
     .composer:focus-within { box-shadow: 0 0 0 1px var(--accent); }
+    .composer.drag-over { border-style: dashed; box-shadow: 0 0 0 2px var(--accent); }
+
+    /* ---- Attachments: "+" menu and file chips ---- */
+    .attach-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 0; }
+    .attach-chips:empty { display: none; }
+    .attach-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 4px 2px 8px; font-size: 12px;
+        border-radius: 4px; background: var(--vscode-badge-background, #4d4d4d); color: var(--vscode-badge-foreground, #fff); }
+    .attach-chip .chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+    .attach-chip button.chip-remove { min-width: 0; width: 18px; height: 18px; padding: 0; border-radius: 3px; background: transparent;
+        color: inherit; opacity: .7; font-size: 14px; line-height: 1; }
+    .attach-chip button.chip-remove:hover { opacity: 1; background: rgba(128,128,128,.3); }
+    .attach-wrap { position: relative; display: inline-flex; }
+    .attach-menu { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 20; min-width: 220px; padding: 4px;
+        border-radius: 8px; border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, #454545));
+        background: var(--vscode-menu-background, #252526); color: var(--vscode-menu-foreground, inherit);
+        box-shadow: 0 4px 16px rgba(0,0,0,.35); }
+    .attach-menu button.menu-item { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; padding: 7px 10px;
+        border-radius: 5px; background: transparent; color: inherit; text-align: left; font-size: 13px; }
+    .attach-menu button.menu-item:hover, .attach-menu button.menu-item:focus { outline: none;
+        background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground, rgba(128,128,128,.2)));
+        color: var(--vscode-menu-selectionForeground, inherit); }
+    .attach-menu .menu-hint { padding: 6px 10px 4px; font-size: 11px; opacity: .65; border-top: 1px solid var(--vscode-menu-separatorBackground, rgba(128,128,128,.35)); margin-top: 4px; }
+    .message .msg-attachments { margin-top: 6px; font-size: 12px; opacity: .85; }
     .composer textarea { border: none; outline: none; background: transparent; color: var(--vscode-input-foreground, inherit);
         min-height: 4lh; resize: none; padding: 10px 12px; }
     .composer textarea::placeholder { color: var(--vscode-input-placeholderForeground, #888); }
@@ -690,8 +792,29 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 <div class="messages" id="messages"></div>
 <div class="controls">
     <div class="composer" id="composer">
+        <div class="attach-chips" id="attach-chips"></div>
         <textarea id="prompt" placeholder="Ask shai… (Enter to send, Shift+Enter for a new line)"></textarea>
         <div class="composer-toolbar">
+            <span class="attach-wrap">
+                <button id="attach" class="icon-btn" title="Add files" aria-label="Add files" aria-haspopup="menu" aria-expanded="false">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+                </button>
+                <div class="attach-menu" id="attach-menu" role="menu" hidden>
+                    <button class="menu-item" role="menuitem" data-attach="pickFiles">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 4.5 5.4 9.6a1.4 1.4 0 0 0 2 2l5.3-5.3a2.8 2.8 0 0 0-4-4L3.4 7.6a4.2 4.2 0 0 0 6 6l4.1-4.1"/></svg>
+                        <span>Upload or add files</span>
+                    </button>
+                    <button class="menu-item" role="menuitem" data-attach="addActiveFile">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M4 1.5h5.5L12.5 4.5v10h-8.5z"/><path d="M9.5 1.5v3h3"/></svg>
+                        <span>Add current file</span>
+                    </button>
+                    <button class="menu-item" role="menuitem" data-attach="addOpenEditors">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.5 3.5h8v9h-8z"/><path d="M5.5 1.5h8v9"/></svg>
+                        <span>Add all open editors</span>
+                    </button>
+                    <div class="menu-hint">Tip: hold Shift and drop files from the Explorer here.</div>
+                </div>
+            </span>
             <button id="clear" class="icon-btn" title="Clear conversation" aria-label="Clear conversation">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.8 6.5v4.5M9.2 6.5v4.5"/></svg>
             </button>
@@ -1072,8 +1195,101 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     function updateEmptyState() {
         if (sendBtn) {
-            sendBtn.classList.toggle('empty', !isRunning && !(prompt.value || '').trim());
+            sendBtn.classList.toggle('empty', !isRunning && !(prompt.value || '').trim() && attachments.length === 0);
         }
+    }
+
+    // --- Attachments ("+" menu, chips, drag & drop) ---
+    const attachBtn = document.getElementById('attach');
+    const attachMenu = document.getElementById('attach-menu');
+    const attachChips = document.getElementById('attach-chips');
+    let attachments = []; // [{ uri, name }]
+
+    function renderAttachments() {
+        if (!attachChips) { return; }
+        attachChips.innerHTML = '';
+        attachments.forEach((a, idx) => {
+            const chip = document.createElement('span');
+            chip.className = 'attach-chip';
+            chip.title = a.uri;
+            const name = document.createElement('span');
+            name.className = 'chip-name';
+            name.textContent = '📎 ' + a.name;
+            chip.appendChild(name);
+            const rm = document.createElement('button');
+            rm.className = 'chip-remove';
+            rm.type = 'button';
+            rm.title = 'Remove ' + a.name;
+            rm.setAttribute('aria-label', 'Remove ' + a.name);
+            rm.textContent = '\\u00d7';
+            rm.addEventListener('click', () => {
+                attachments.splice(idx, 1);
+                renderAttachments();
+            });
+            chip.appendChild(rm);
+            attachChips.appendChild(chip);
+        });
+        updateEmptyState();
+    }
+
+    function addAttachments(files) {
+        (files || []).forEach(f => {
+            if (f && f.uri && !attachments.some(a => a.uri === f.uri)) {
+                attachments.push({ uri: f.uri, name: f.name || f.uri });
+            }
+        });
+        renderAttachments();
+    }
+
+    function setMenuOpen(open) {
+        if (!attachMenu || !attachBtn) { return; }
+        attachMenu.hidden = !open;
+        attachBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+            const first = attachMenu.querySelector('.menu-item');
+            if (first) { first.focus(); }
+        }
+    }
+
+    attachBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setMenuOpen(attachMenu ? attachMenu.hidden : false);
+    });
+    attachMenu?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = e.target.closest('.menu-item');
+        if (!item) { return; }
+        setMenuOpen(false);
+        vscode.postMessage({ type: item.getAttribute('data-attach') });
+    });
+    attachMenu?.addEventListener('keydown', (e) => {
+        const items = Array.prototype.slice.call(attachMenu.querySelectorAll('.menu-item'));
+        const i = items.indexOf(document.activeElement);
+        if (e.key === 'Escape') { e.preventDefault(); setMenuOpen(false); attachBtn?.focus(); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+    });
+    document.addEventListener('click', () => setMenuOpen(false));
+
+    // Drag & drop from the VS Code Explorer (hold Shift) or the OS.
+    function droppedUris(dt) {
+        const raw = dt.getData('application/vnd.code.uri-list') || dt.getData('text/uri-list') || '';
+        return raw.split(/\\r?\\n/).map(s => s.trim()).filter(s => s && s.charAt(0) !== '#');
+    }
+    if (composer) {
+        composer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            composer.classList.add('drag-over');
+        });
+        composer.addEventListener('dragleave', () => composer.classList.remove('drag-over'));
+        composer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            composer.classList.remove('drag-over');
+            const uris = e.dataTransfer ? droppedUris(e.dataTransfer) : [];
+            if (uris.length > 0) {
+                vscode.postMessage({ type: 'dropUris', uris: uris });
+            }
+        });
     }
 
     function requestStop() {
@@ -1163,10 +1379,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     function submitPrompt() {
         if (isRunning || !sendEnabled(streamState)) return;
         const value = (prompt.value || '').trim();
-        if (!value) return;
-        appendMessage(value, 'user');
-        vscode.postMessage({ type: 'chat-prompt', message: value, tabId: activeTabId, noExtraContext: noExtraContextCb?.checked || false, autopilot: autopilotCb?.checked || false });
+        if (!value && attachments.length === 0) return;
+        const sent = attachments.slice();
+        const userEl = appendMessage(value, 'user');
+        if (sent.length > 0) {
+            const list = document.createElement('div');
+            list.className = 'msg-attachments';
+            list.textContent = sent.map(a => '📎 ' + a.name).join('   ');
+            userEl.insertBefore(list, userEl.querySelector('.message-timestamp'));
+        }
+        vscode.postMessage({ type: 'chat-prompt', message: value, attachments: sent.map(a => a.uri), tabId: activeTabId, noExtraContext: noExtraContextCb?.checked || false, autopilot: autopilotCb?.checked || false });
         prompt.value = '';
+        attachments = [];
+        renderAttachments();
         setProcessing(true);
         applyStreamEvent('submit');
         lastAssistantEl = null;
@@ -1370,6 +1595,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             }
         } else if (msg.type === 'addTab') {
             addTab();
+        } else if (msg.type === 'attachmentsAdded') {
+            addAttachments(msg.files);
+            prompt?.focus();
         }
     });
 

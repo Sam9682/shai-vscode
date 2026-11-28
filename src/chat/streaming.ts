@@ -120,9 +120,10 @@ export class StreamingChatSession {
     onProgress: (progress: StreamingResponse) => void,
     interactionMode: string = 'none',
     noExtraContext: boolean = false,
-    autopilot: boolean = false
+    autopilot: boolean = false,
+    attachmentBlock: string = ''
   ): Promise<string> {
-    console.log('executeCommandWithStreaming called with message:', message, 'mode:', interactionMode, 'noExtraContext:', noExtraContext, 'autopilot:', autopilot);
+    console.log('executeCommandWithStreaming called with message:', message, 'mode:', interactionMode, 'noExtraContext:', noExtraContext, 'autopilot:', autopilot, 'attachments:', attachmentBlock.length, 'chars');
     const config = vscode.workspace.getConfiguration('shai-vscode');
     const shaiCommand = config.get<string>('shaiCommand') || 'shai';
     const useServer = config.get<boolean>('useServer') || false;
@@ -190,7 +191,8 @@ Files and directories are NOT actions: always write them as markdown links with 
       const cur = { abort, stopped: false };
       this.current = cur;
       try {
-        return await this.callServer(contextualMessage, serverUrl, onProgress, interactionMode, abort.signal);
+        const body = attachmentBlock ? `${contextualMessage}\n\n${attachmentBlock}` : contextualMessage;
+        return await this.callServer(body, serverUrl, onProgress, interactionMode, abort.signal);
       } catch (err) {
         if (cur.stopped) { throw new ShaiStoppedError(); }
         throw err;
@@ -209,7 +211,14 @@ Files and directories are NOT actions: always write them as markdown links with 
         env: env,
         stdio: ['pipe', 'pipe', 'pipe']
       });
-      child.stdin.end();
+      // shai reads piped stdin and sends it as a second user message after
+      // --prompt: attached files go there, free of command-line length limits.
+      child.stdin.on('error', () => { /* shai exited early: ignore EPIPE */ });
+      if (attachmentBlock) {
+        child.stdin.end(attachmentBlock, 'utf8');
+      } else {
+        child.stdin.end();
+      }
       const cur = { child, pidFile, stopped: false };
       this.current = cur;
       const finish = () => {
